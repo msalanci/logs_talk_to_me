@@ -1,0 +1,97 @@
+---
+AWSTemplateFormatVersion: '2010-09-09'
+Description: IAM roles for LTTM project
+
+Resources:
+  # IAM role for Lex chatbot
+  LexBotRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: AmazonLexBotRole
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+                - lexv2.amazonaws.com
+            Action:
+              - sts:AssumeRole
+      Policies:
+        - PolicyName: LexBotPolicy
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - logs:CreateLogGroup
+                  - logs:CreateLogStream
+                  - logs:PutLogEvents
+                  - lex:RecognizeText
+                  - lex:RecognizeUtterance
+                Resource: "*"
+  
+  # IAM role for Lambda function
+  LTTMLambdaRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: LTTMLambdaRole
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: lambda.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
+      Policies:
+        - PolicyName: LTTMBedrockPerm
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - bedrock:*
+                  - bedrock-runtime:*
+                Resource: "*"
+        - PolicyName: LTTMCloudTrailPerm
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - cloudtrail:*
+                Resource: "*"
+        - PolicyName: LTTMLexInvokePerm
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - lex:*
+                Resource: "*"
+        # - PolicyName: LTTM-Bedrock-Explicit
+        #   PolicyDocument:
+        #     Version: '2012-10-17'
+        #     Statement:
+        #       - Effect: Allow
+        #         Action:
+        #           - bedrock:InvokeModel
+        #           - bedrock:InvokeModelWithResponseStream
+        #           - bedrock:Converse
+        #         Resource: "arn:aws:bedrock:us-west-2::foundation-model/anthropic.claude-3-7-sonnet-20250219-v1:0"
+
+
+Outputs:
+  LexBotRoleArn:    
+    Value:
+      !GetAtt LexBotRole.Arn
+    Export:
+      Name: LexBotRoleArn
+ 
+  LTTMLambdaRoleArn:
+    Value:
+      !GetAtt LTTMLambdaRole.Arn
+    Export:
+      Name: LTTMLambdaRoleArn
