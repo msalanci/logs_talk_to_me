@@ -28,6 +28,15 @@ For invoking Amazon Lex, user can use various methods, such as:
 This project is using a bash script called Alaxandra, to invoke the Amazon Lex
 
 
+When deploying CloudFormation template, check for parameters and add everything it needs:
+- To IAM template - nothing to add
+- To Lamnda template - add CloudTrail Event Data Store ID (CloudTrail lake ID) and add Lambda role arn you deployed in IAM template
+- To Lex template - add account numbers, dependinf how many accounts you have (modify the template accordingly!)
+- To alexandra.sh, add Lex Bot ID and Lex Alias ID
+
+
+
+
 ### Usage example
 
 From your terminal call alexandra.sh and state your question

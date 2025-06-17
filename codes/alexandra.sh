@@ -2,8 +2,8 @@
 
 # Usage: ./asklex.sh "your question here"
 
-BOT_ID="CAR1VQEV3M"      # Bot ID
-ALIAS_ID="EYMNM83OWY"    # Bot Alias ID
+BOT_ID="MYBOTID123"     # Put your own, from the console - Lex > Bots > Bot: YourBot
+ALIAS_ID="MYALIASID"    # Put your own, from the console- Lex > Bots > Bot: YourBot > Aliases > Alias: PROD
 LOCALE="en_US"
 SESSION_ID="terminal-session"
 
