@@ -29,10 +29,16 @@ This project is using a bash script called Alaxandra, to invoke the Amazon Lex
 
 
 ### Usage example
+
+From your terminal call alexandra.sh and state your question
+
 ```
 ./alexandra.sh "last 3 user names to account 123456789012"
+```
 
+The answer will follow
 
+```
 Alexandra asking Lex: last 3 user names to account 123456789012
 # Users in Account Summary
 
