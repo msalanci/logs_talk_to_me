@@ -5,6 +5,8 @@ Analyzing CloudTrail logs can be complex, but what if you could simply ask, "Tel
 
 It currentluy works only for CloudTrail logs regarding user management, but I am already working on more
 
+## Prerequisites
+Make sure to create a CloudTrail Lake, for successfull lambda querries
 
 ## Architectural overview and description
 
@@ -27,3 +29,24 @@ This project is using a bash script called Alaxandra, to invoke the Amazon Lex
 
 
 ### Usage example
+```
+./alexandra.sh "last 3 user names to account 123456789012"
+
+
+Alexandra asking Lex: last 3 user names to account 123456789012
+# Users in Account Summary
+
+1. User: HIDDEN_DUE_TO_SECURITY_REASONS
+   - Source IP: 65.10.8.46
+   - Login Status: SUCCESSFUL
+
+2. User: JohnDOE
+   - ARN: arn:aws:iam::123456789012:user/JohnDOE
+   - Source IP: 65.10.8.46
+   - Login Status: SUCCESSFUL
+
+3. User: AccountAdmin
+   - ARN: arn:aws:iam::123456789012:user/AccountAdmin
+   - Source IP: 158.23.57.101
+   - Login Status: SUCCESSFUL
+```
