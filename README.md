@@ -3,10 +3,18 @@ This is the bot to have a chat with, about logs.
 
 Analyzing CloudTrail logs can be complex, but what if you could simply ask, "Tell me about the last 10 unsuccessful login attempts"? This repo builds a conversational interface for CloudTrail logs using Amazon Bedrock's LLM (Antropic Claude Sonnet 3.7), Amazon Lex for intent, AWS Lambda to connect it all and querry the logs from CloudTrail lake.
 
-It currentluy works only for CloudTrail logs regarding user management, but I am already working on more
+It currently works only for CloudTrail logs regarding user management, but I am already working on more.
 
-## Prerequisites
-Make sure to create a CloudTrail Lake, for successfull lambda querries
+## Prerequisites & good to know
+1. You have to have account(s) in AWS Organizations, with Control Tower. That's because it creates Baseline Trail and S3 bucket where all account(s) can send the CloudTrail logs
+
+2. Later, the code in this repo creates the CloudTrail Lake (Event Data Store) to gather all the logs. 
+
+3. This project needs the CloudTrail Lake (Event Data Store), because it does SQL querries towards it.
+
+4. I suggest to deploy templates in right order - 1,2,3,4
+
+5. Make some logs :) Please understand that in CloudTrail Lake you will see only logs that were created AFTER the lake was deployed. 
 
 ## Architectural overview and description
 
@@ -25,17 +33,53 @@ For invoking Amazon Lex, user can use various methods, such as:
 2. Create a web frontned
 3. Use a script
 
-This project is using a bash script called Alaxandra, to invoke the Amazon Lex
+This project is using a bash script called alexandra.sh, to invoke the Amazon Lex.
 
 
 When deploying CloudFormation template, check for parameters and add everything it needs:
-- To IAM template - nothing to add
-- To Lamnda template - add CloudTrail Event Data Store ID (CloudTrail lake ID) and add Lambda role arn you deployed in IAM template
-- To Lex template - add account numbers, dependinf how many accounts you have (modify the template accordingly!)
-- To alexandra.sh, add Lex Bot ID and Lex Alias ID
+- To 1-iam.yaml - nothing to add.
+- To 2-cloudtrail-lake.yaml - nothing to add.
+- To 3-lambda.yaml - add Bedrock Model ID. This code works with Antropic Cloude 3.7 and it's a default option in Cloud Formation parameters.
+- To 4-lex.yaml - add AWS account IDs you are using (make sure to have AWS Organizations and Control Tower).
+This project is using 3 accounts, but if you have more or less, please update
+Parameters (lines 5-21):
+```yaml
+Parameters:
+  # Use as many account IDs as you have. Read the readme.md of you have more or less then 3
+  AccountId1:
+    Description: Account ID 1
+    Type: String
 
+  AccountId2:
+    Description: Account ID 2
+    Type: String
 
+  AccountId3:
+    Description: Account ID 3
+    Type: String
 
+  # AccountIdn:
+  #   Description: Account ID 3
+  #   Type: String
+```
+
+and AccountIdSlotType (lines 66-77):
+```yaml
+- Name: AccountIdSlotType
+   SlotTypeValues:
+      - SampleValue:
+         Value: !Sub "${AccountId1}"
+      - SampleValue:
+         Value: !Sub "${AccountId2}"
+      - SampleValue:
+         Value: !Sub "${AccountId3}"
+      # - SampleValue:
+      #     Value: !Sub "${AccountIdn}"
+   ValueSelectionSetting:
+      ResolutionStrategy: ORIGINAL_VALUE
+```
+
+- To alexandra.sh, add Lex Bot ID and Lex Alias ID - It's outputed in 4-lex.yaml, just for this purpose. You have to manually copy them into alexandra.sh
 
 ### Usage example
 

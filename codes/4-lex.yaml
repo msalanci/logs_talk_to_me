@@ -3,28 +3,29 @@ AWSTemplateFormatVersion: '2010-09-09'
 Description: CloudFormation template to create CloudTrailLogBot with account ID required for all intents
 
 Parameters:
-  # Use as many account IDs as you have. This project is useing 3
+  # Use as many account IDs as you have. Read the readme.md of you have more or less then 3
   AccountId1:
     Description: Account ID 1
     Type: String
-    Default: "123456789012"  # Replace with real account ID in deployment
 
   AccountId2:
     Description: Account ID 2
     Type: String
-    Default: "234567890123"  # Replace with real account ID in deployment
 
   AccountId3:
     Description: Account ID 3
     Type: String
-    Default: "345678901234"  # Replace with real account ID in deployment
+
+  # AccountIdn:
+  #   Description: Account ID 3
+  #   Type: String
 
 Resources:
   CloudTrailLogBot:
     Type: AWS::Lex::Bot
     Properties:
       Name: LTTLex
-      RoleArn: !ImportValue LexBotRoleArn
+      RoleArn: !ImportValue LttmLexBotRoleArn
       DataPrivacy:
         ChildDirected: false
       IdleSessionTTLInSeconds: 300
@@ -32,7 +33,6 @@ Resources:
       Description: "Bot for CloudTrail logs analysis"
       BotLocales:
         - LocaleId: en_US
-          # NluConfidenceThreshold: 0.40
           NluConfidenceThreshold: 0.30
           VoiceSettings:
             VoiceId: Salli
@@ -51,8 +51,6 @@ Resources:
 
             - Name: IPAddressSlotType
               SlotTypeValues:
-                # - SampleValue: { Value: "192.168.1.1" }
-                # - SampleValue: { Value: "10.0.0.1" }
                 - SampleValue: { Value: "8.8.8.8" } # Public IP
                 - SampleValue: { Value: "18.184.81.91" } # Typical AWS IP
                 - SampleValue: { Value: "192.168.1.1" } # Private IP
@@ -61,8 +59,6 @@ Resources:
 
             - Name: TimeframeHoursSlotType
               SlotTypeValues:
-                # - SampleValue: { Value: "24" }
-                # - SampleValue: { Value: "48" }
                 - SampleValue: { Value: "1" }
               ValueSelectionSetting:
                 ResolutionStrategy: ORIGINAL_VALUE
@@ -75,6 +71,8 @@ Resources:
                     Value: !Sub "${AccountId2}"
                 - SampleValue:
                     Value: !Sub "${AccountId3}"
+                # - SampleValue:
+                #     Value: !Sub "${AccountIdn}"
               ValueSelectionSetting:
                 ResolutionStrategy: ORIGINAL_VALUE
 
@@ -104,7 +102,6 @@ Resources:
                 - Name: accountid
                   SlotTypeName: AccountIdSlotType
                   ValueElicitationSetting:
-                    # SlotConstraint: Optional
                     SlotConstraint: Required
                     PromptSpecification:
                       MessageGroupsList:
@@ -151,7 +148,6 @@ Resources:
                 - Name: accountid
                   SlotTypeName: AccountIdSlotType
                   ValueElicitationSetting:
-                    # SlotConstraint: Optional
                     SlotConstraint: Required
                     PromptSpecification:
                       MessageGroupsList:
@@ -214,7 +210,6 @@ Resources:
                 - Name: accountid
                   SlotTypeName: AccountIdSlotType
                   ValueElicitationSetting:
-                    # SlotConstraint: Optional
                     SlotConstraint: Required
                     PromptSpecification:
                       MessageGroupsList:
@@ -425,7 +420,7 @@ Resources:
             Enabled: true
             CodeHookSpecification:
               LambdaCodeHook:
-                LambdaArn: !ImportValue LTTMMainFunctionArn
+                LambdaArn: !ImportValue LttmMainFunctionArn
                 CodeHookInterfaceVersion: "1.0"
       BotVersion: !GetAtt BotVersion.BotVersion
       SentimentAnalysisSettings:
@@ -434,7 +429,20 @@ Resources:
   LexV2Permission:
     Type: AWS::Lambda::Permission
     Properties:
-      FunctionName: !ImportValue LTTMMainFunctionArn
+      FunctionName: !ImportValue LttmMainFunctionArn
       Action: lambda:InvokeFunction
       Principal: lexv2.amazonaws.com
       SourceArn: !Sub "arn:aws:lex:eu-central-1:${AccountId1}:bot-alias/*"
+
+Outputs:
+  LexBotId:
+    Description: "The ID of the Lex Bot"
+    Value: !Ref CloudTrailLogBot
+    Export:
+      Name: LexBotId
+
+  LexBotAliasId:
+    Description: "The ID of the Lex Bot Alias"
+    Value: !Select [0, !Split ["|", !Ref ProdAlias]]
+    Export:
+      Name: LexBotAliasId

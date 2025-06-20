@@ -1,29 +1,26 @@
 AWSTemplateFormatVersion: '2010-09-09'
-Description: CMain lambda function for Logs Talk To Me project - now for eu-central-1
+Description: Main lambda function for LTTM project, to integrate with Bedrock
 
 Parameters:
-  LTTMLambdaRole:
-    Description: ARN of the IAM role created in stack running in eu-central
+  BedrockModelId:
+    Description: ID of the Bedrock model you are using
     Type: String
-
-  CloudTrailEventDataStoreId:
-    Description: CloudTrail event data store ID
-    Type: String
+    Default: us.anthropic.claude-3-7-sonnet-20250219-v1:0
 
 Resources:
-  LTTMMainFunction:
+  LttmMainFunction:
     Type: AWS::Lambda::Function
     Properties:
-      FunctionName: LTTMMainFunction
+      FunctionName: LttmMainFunction
       Handler: index.lambda_handler
-      Role: !Ref LTTMLambdaRole
+      Role: !ImportValue LttmLambdaRoleArn
       Runtime: python3.12
       Timeout: 60
       MemorySize: 128
       Environment:
         Variables:
-          CLOUDTRAIL_EVENT_DATA_STORE_ID: !Ref CloudTrailEventDataStoreId
-          BEDROCK_MODEL_ID: 'us.anthropic.claude-3-7-sonnet-20250219-v1:0'
+          CLOUDTRAIL_EVENT_DATA_STORE_ID: !ImportValue EventDataStoreId # If using imported one
+          BEDROCK_MODEL_ID: !Ref BedrockModelId
       Code:
         ZipFile: |
             import json
@@ -591,9 +588,8 @@ Resources:
                     ]
                 }
 
-
 Outputs:
-  LTTMMainFunctionArn:
-    Value: !GetAtt LTTMMainFunction.Arn
+  LttmMainFunctionArn:
+    Value: !GetAtt LttmMainFunction.Arn
     Export:
-      Name: LTTMMainFunctionArn
+      Name: LttmMainFunctionArn
