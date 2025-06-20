@@ -1,37 +1,43 @@
 # Logs talk to me
 This is the bot to have a chat with, about logs.
 
-Analyzing CloudTrail logs can be complex, but what if you could simply ask, "Tell me about the last 10 unsuccessful login attempts"? This repo builds a conversational interface for CloudTrail logs using Amazon Bedrock's LLM (Antropic Claude Sonnet 3.7), Amazon Lex for intent, AWS Lambda to connect it all and querry the logs from CloudTrail lake.
+Analyzing CloudTrail logs can be complex, but what if you could simply ask, **_Tell me about the last 10 unsuccessful login attempts_**. This repo builds a conversational interface for **CloudTrail** logs using **Amazon Bedrock's LLM (Antropic Claude Sonnet 3.7)**, **Amazon Lex** for intent, **AWS Lambda** to connect it all and querry the logs from **CloudTrail lake**.
 
-It currently works only for CloudTrail logs regarding user management, but I am already working on more.
+It currently works only for CloudTrail logs regarding **_user management_**, but I am already working on more.
 
 ## Prerequisites & good to knows
 1. You have to have your account(s) in **AWS Organizations**, with **Control Tower**. That's because it creates **Baseline Trail** and **S3 bucket** where all account(s) can send the CloudTrail logs
 
-2. Later, the code in this repo creates the **CloudTrail Lake (Event Data Store)** to gather all the logs. This project needs in, because it issues SQL querries towards it.
+2. Everything (except the creating the AWS Organization with Control Tower) is in CloudFormation template in folder `/codes`
 
-4. I suggest to deploy templates in right order - 1,2,3,4
+3. Later, the code in this repo creates the **CloudTrail Lake (Event Data Store)** to gather all the logs. This project needs in, because it issues **SQL querries** towards it.
 
-5. Make some logs :) Please understand that in CloudTrail Lake you will see only logs that were created AFTER the lake was deployed. 
+4. I suggest to deploy templates in right order:
+`1-iam.yaml`
+`2-cloudtrail-lake.yaml`
+`3-lambda.yaml`
+`4-lex.yaml`
+
+5. Make some logs :) Please understand that in CloudTrail Lake you will see only logs that were created **after** the lake was deployed. 
 
 ## Architectural overview and description
 
 <img width="735" alt="Screenshot 2025-06-09 at 13 20 03" src="https://github.com/user-attachments/assets/d390c2f1-a4b6-425e-bd88-a05df5b42243" />
 
-User makes a prompt to Amazon Lex.  
-Lex takes the user imput, understands the user intentions and prepares it for processing by Lambda.  
-Lambda receives the user input from lex with the idea of user intention.  
-Based on the intent, lambda queries cloudtrail lake and receive the query response, creates the prompt and send it to Bedrock.  
-Bedrock then routes the prompt to the Claude 3.7 Sonnet foundation model.  
-Foundation Model process it, creates an output and sends it back to Bedrock, which returns it back to the Lambda.  
-Lambda builds the Lex response, send it to Lex, which then returns the output to the user and this is how it works in general.  
+1. User makes a prompt to **Amazon Lex**.  
+2. **Amazon Lex** takes the user imput, understands the user intentions and prepares it for processing by **AWS Lambda**.  
+3. **AWS Lambda** receives the user input from **Amazon Lex**  with the idea of user intention.  
+Based on the intent, **AWS Lambda** queries **cloudtrail lake** and receive the query response, creates the prompt and send it to **Amazon Bedrock**.  
+4. **Amazon Bedrock** then routes the prompt to the **Antropic Claude 3.7 Sonnet** foundation model.  
+5. Foundation Model process it, creates an output and sends it back to **Amazon Bedrock**, which returns it back to the **AWS Lambda**.  
+6. **AWS Lambda** builds the **Amazon Lex** response, send it to **Amazon Lex**, which then returns the output to the user and this is how it works in general.  
 
-For invoking Amazon Lex, user can use various methods, such as:
-1. Directly in AWS Console
-2. Create a web frontned
-3. Use a script
+For invoking **Amazon Lex**, user can use various methods, such as:
+- **Directly in AWS Console**
+- **Create a web frontned**
+- **Use a script**
 
-This project is using a bash script called `alexandra.sh`, to invoke the Amazon Lex.
+This project is using a `bash` script called `alexandra.sh`, to invoke the **Amazon Lex**.
 
 
 When deploying CloudFormation template, check for parameters and add everything it needs:
@@ -81,13 +87,13 @@ and **AccountIdSlotType (lines 66-77)**:
 
 ### Usage example
 
-From your terminal call `alexandra.sh` and state your question
+From your terminal call `alexandra.sh` and state your question:
 
 ```
 ./alexandra.sh "last 3 user names to account 123456789012"
 ```
 
-The answer will follow
+The answer will follow:
 
 ```
 Alexandra asking Lex: last 3 user names to account 123456789012
