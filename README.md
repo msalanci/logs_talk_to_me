@@ -36,11 +36,11 @@ This project is using a bash script called `alexandra.sh`, to invoke the Amazon 
 
 When deploying CloudFormation template, check for parameters and add everything it needs:
 - To `1-iam.yaml` - nothing to add.
-- To __2-cloudtrail-lake.yaml - nothing to add.
-- To 3-lambda.yaml - add Bedrock Model ID. This code works with Antropic Cloude 3.7 and it's a default option in Cloud Formation parameters.
-- To 4-lex.yaml - add AWS account IDs you are using (make sure to have AWS Organizations and Control Tower).
+- To `2-cloudtrail-lake.yaml` - nothing to add.
+- To `3-lambda.yaml` - add Bedrock Model ID. This code works with Antropic Cloude 3.7 and it's a default option in Cloud Formation parameters.
+- To `4-lex.yaml` - add AWS account IDs you are using (make sure to have AWS Organizations and Control Tower).
 This project is using 3 accounts, but if you have more or less, please update
-Parameters (lines 5-21):
+**Parameters (lines 5-21)**:
 ```yaml
 Parameters:
   # Use as many account IDs as you have. Read the readme.md of you have more or less then 3
@@ -61,7 +61,7 @@ Parameters:
   #   Type: String
 ```
 
-and AccountIdSlotType (lines 66-77):
+and **AccountIdSlotType (lines 66-77)**:
 ```yaml
 - Name: AccountIdSlotType
    SlotTypeValues:
@@ -77,11 +77,11 @@ and AccountIdSlotType (lines 66-77):
       ResolutionStrategy: ORIGINAL_VALUE
 ```
 
-- To alexandra.sh, add Lex Bot ID and Lex Alias ID - It's outputed in 4-lex.yaml, just for this purpose. You have to manually copy them into alexandra.sh
+- To `alexandra.sh`, add **Lex Bot ID** and **Lex Alias ID** - It's outputed in `4-lex.yaml`, just for this purpose. You have to manually copy them into `alexandra.sh`.
 
 ### Usage example
 
-From your terminal call alexandra.sh and state your question
+From your terminal call `alexandra.sh` and state your question
 
 ```
 ./alexandra.sh "last 3 user names to account 123456789012"
