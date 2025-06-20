@@ -5,12 +5,10 @@ Analyzing CloudTrail logs can be complex, but what if you could simply ask, "Tel
 
 It currently works only for CloudTrail logs regarding user management, but I am already working on more.
 
-## Prerequisites & good to know
-1. You have to have account(s) in AWS Organizations, with Control Tower. That's because it creates Baseline Trail and S3 bucket where all account(s) can send the CloudTrail logs
+## Prerequisites & good to knows
+1. You have to have your account(s) in **AWS Organizations**, with **Control Tower**. That's because it creates **Baseline Trail** and **S3 bucket** where all account(s) can send the CloudTrail logs
 
-2. Later, the code in this repo creates the CloudTrail Lake (Event Data Store) to gather all the logs. 
-
-3. This project needs the CloudTrail Lake (Event Data Store), because it does SQL querries towards it.
+2. Later, the code in this repo creates the **CloudTrail Lake (Event Data Store)** to gather all the logs. This project needs in, because it issues SQL querries towards it.
 
 4. I suggest to deploy templates in right order - 1,2,3,4
 
@@ -33,12 +31,12 @@ For invoking Amazon Lex, user can use various methods, such as:
 2. Create a web frontned
 3. Use a script
 
-This project is using a bash script called alexandra.sh, to invoke the Amazon Lex.
+This project is using a bash script called `alexandra.sh`, to invoke the Amazon Lex.
 
 
 When deploying CloudFormation template, check for parameters and add everything it needs:
-- To 1-iam.yaml - nothing to add.
-- To 2-cloudtrail-lake.yaml - nothing to add.
+- To `1-iam.yaml` - nothing to add.
+- To __2-cloudtrail-lake.yaml - nothing to add.
 - To 3-lambda.yaml - add Bedrock Model ID. This code works with Antropic Cloude 3.7 and it's a default option in Cloud Formation parameters.
 - To 4-lex.yaml - add AWS account IDs you are using (make sure to have AWS Organizations and Control Tower).
 This project is using 3 accounts, but if you have more or less, please update
