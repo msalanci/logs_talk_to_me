@@ -1,7 +1,8 @@
 # Logs talk to me
 This is the bot to have a chat with, about logs.
 
-Analyzing CloudTrail logs can be complex, but what if you could simply ask, **_Tell me about the last 10 unsuccessful login attempts_**. This repo builds a conversational interface for **CloudTrail** logs using **Amazon Bedrock's LLM (Antropic Claude Sonnet 3.7)**, **Amazon Lex** for intent, **AWS Lambda** to connect it all and querry the logs from **CloudTrail lake**.
+Analyzing CloudTrail logs can be complex, but what if you could simply ask, **_Tell me about the last 10 unsuccessful login attempts_**. 
+This project builds a conversational interface for **CloudTrail** logs using **Amazon Bedrock's LLM (Antropic Claude Sonnet 3.7)**, **Amazon Lex** for intent, **AWS Lambda** to connect it all and querry the logs from **CloudTrail lake**.
 
 It currently works only for CloudTrail logs regarding **_user management_**, but I am already working on more.
 
@@ -24,12 +25,17 @@ It currently works only for CloudTrail logs regarding **_user management_**, but
 
 <img width="735" alt="Screenshot 2025-06-09 at 13 20 03" src="https://github.com/user-attachments/assets/d390c2f1-a4b6-425e-bd88-a05df5b42243" />
 
-1. User makes a prompt to **Amazon Lex**.  
-2. **Amazon Lex** takes the user imput, understands the user intentions and prepares it for processing by **AWS Lambda**.  
+1. User makes a prompt to **Amazon Lex**.
+
+2. **Amazon Lex** takes the user imput, understands the user intentions and prepares it for processing by **AWS Lambda**.
+
 3. **AWS Lambda** receives the user input from **Amazon Lex**  with the idea of user intention.  
-Based on the intent, **AWS Lambda** queries **cloudtrail lake** and receive the query response, creates the prompt and send it to **Amazon Bedrock**.  
-4. **Amazon Bedrock** then routes the prompt to the **Antropic Claude 3.7 Sonnet** foundation model.  
-5. Foundation Model process it, creates an output and sends it back to **Amazon Bedrock**, which returns it back to the **AWS Lambda**.  
+Based on the intent, **AWS Lambda** queries **cloudtrail lake** and receive the query response, creates the prompt and send it to **Amazon Bedrock**.
+
+4. **Amazon Bedrock** then routes the prompt to the **Antropic Claude 3.7 Sonnet** foundation model.
+
+5. Foundation Model process it, creates an output and sends it back to **Amazon Bedrock**, which returns it back to the **AWS Lambda**.
+
 6. **AWS Lambda** builds the **Amazon Lex** response, send it to **Amazon Lex**, which then returns the output to the user and this is how it works in general.  
 
 For invoking **Amazon Lex**, user can use various methods, such as:
@@ -42,8 +48,11 @@ This project is using a `bash` script called `alexandra.sh`, to invoke the **Ama
 
 When deploying CloudFormation template, check for parameters and add everything it needs:
 - To `1-iam.yaml` - nothing to add.
+
 - To `2-cloudtrail-lake.yaml` - nothing to add.
+
 - To `3-lambda.yaml` - add Bedrock Model ID. This code works with Antropic Cloude 3.7 and it's a default option in Cloud Formation parameters.
+
 - To `4-lex.yaml` - add AWS account IDs you are using (make sure to have AWS Organizations and Control Tower).
 This project is using 3 accounts, but if you have more or less, please update
 **Parameters (lines 5-21)**:
