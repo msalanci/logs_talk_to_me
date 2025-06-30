@@ -1,0 +1,83 @@
+---
+AWSTemplateFormatVersion: '2010-09-09'
+Description: LTTM v2 lambda function, to detect intent and extract the slots from user query, using Bedrock model.
+
+Parameters:
+  BedrockIntentModelId:
+    Description: Bedrock model to perform intent determination and slot extraction
+    Type: String
+    Default: us.amazon.nova-pro-v1:0
+    # Default: us.anthropic.claude-3-7-sonnet-20250219-v1:0
+    # Default: us.anthropic.claude-sonnet-4-20250514-v1:0
+
+  BedrockIntentModelRegion:
+    Description: AWS region to invoke Bedrock model from
+    Type: String
+    Default: us-west-2 # Oregon
+    # Default: us-east-1 # N. Virginia
+    # Default: us-east-2 # Ohio
+    # Default: eu-central-1 # Frankfurt
+
+  LambdaMemorySize:
+    Description: Memory size for the Lambda function (MB)
+    Type: Number
+    Default: 128
+
+  LambdaTimeout:
+    Description: Timeout for the Lambda function (seconds)
+    Type: Number
+    Default: 60
+
+  LambdaRuntime:
+    Description: Python runtime for the Lambda
+    Type: String
+    Default: python3.12
+    AllowedValues: [python3.12, python3.13]
+
+  FunctionName:
+    Description: Name of the Lambda function - easy deployment for dev/test/prod
+    Type: String
+    Default: lttm-v2-lambda-intent
+
+  MainAwsAccountId:
+    Description: Main Account ID - the one where CloudTrail Event Data Store is
+    Type: String
+
+  LambdaZipVersion:
+    Type: String
+    Description: S3 object version for the Lambda zip file, is populated by deploy_lambnda.sh during deployment
+
+Resources:
+  LttmLambdaIntent:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: !Ref FunctionName
+      # Handler: index.lambda_handler
+      Handler: lambda_function.lambda_handler
+      Role: !ImportValue LttmLambdaRoleArn
+      Runtime: !Ref LambdaRuntime
+      Timeout: !Ref LambdaTimeout
+      MemorySize: !Ref LambdaMemorySize
+      Layers:
+        - !ImportValue LttmUtilsLayerArn
+      Environment:
+        Variables:
+          BEDROCK_INTENT_MODEL_ID: !Ref BedrockIntentModelId
+          BEDROCK_INTENT_MODEL_REGION: !Ref BedrockIntentModelRegion
+          LAMBDA_QUERY: !ImportValue LttmLambdaQueryArn
+          MAIN_AWS_ACCOUNT_ID: !Ref MainAwsAccountId
+      Code:
+        S3Bucket: !ImportValue LttmArtifactsBucket
+        S3Key: lttmv2/lambdas/lttm_intent.zip # must match ZIP variable from deploy_cf.sh
+        S3ObjectVersion: !Ref LambdaZipVersion
+
+Outputs:
+  LttmLambdaIntentArn:
+    Value: !GetAtt LttmLambdaIntent.Arn
+    Export:
+      Name: LttmLambdaIntentArn
+
+  LttmLambdaIntent:
+    Value: LttmLambdaIntent
+    Export:
+      Name: LttmLambdaIntent

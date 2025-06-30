@@ -1,3 +1,4 @@
+---
 AWSTemplateFormatVersion: '2010-09-09'
 Description: CloudTrail Lake for LTTM projetct, from all the accounts within AWS Organization
 
@@ -53,3 +54,8 @@ Outputs:
     Export:
       Name: EventDataStoreId
 
+  EventDataStoreRegion:
+    Description: "Region where the CloudTrail Lake Event Data Store was created"
+    Value: !Ref "AWS::Region"
+    Export:
+      Name: EventDataStoreRegion

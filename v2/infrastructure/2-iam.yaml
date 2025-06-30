@@ -1,6 +1,6 @@
 ---
 AWSTemplateFormatVersion: '2010-09-09'
-Description: IAM roles for LTTM project
+Description: IAM roles for all versions of LTTM project
 
 Parameters:
   MainAccountId:
@@ -117,6 +117,24 @@ Resources:
                 Action:
                   - lex:*
                 Resource: "*"
+        - PolicyName: LttmInvokeAnyLambdaInAccount
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - lambda:InvokeFunction
+                Resource: !Sub "arn:aws:lambda:eu-central-1:${MainAccountId}:function:*"
+        # - PolicyName: LTTM-Bedrock-Explicit
+        #   PolicyDocument:
+        #     Version: '2012-10-17'
+        #     Statement:
+        #       - Effect: Allow
+        #         Action:
+        #           - bedrock:InvokeModel
+        #           - bedrock:InvokeModelWithResponseStream
+        #           - bedrock:Converse
+        #         Resource: "arn:aws:bedrock:us-west-2::foundation-model/anthropic.claude-3-7-sonnet-20250219-v1:0"
 
 Outputs:
   LttmCloudTrailLakeRoleArn:
