@@ -158,6 +158,7 @@ The main differences against v1 are:
 
 
 ### Architectural overview and description of v2
+
 LTTMv2 uses API GW, 3 Lambda functions, each invoking Amazon Bedrock sepparately.
 
 AWS Lambda function `lttm-v2-lambda-intent`:
