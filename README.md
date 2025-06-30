@@ -158,6 +158,7 @@ The main differences against v1 are:
 
 
 ### Architectural overview and description of v2
+
 <img width="13" alt="image" src="https://github.com/user-attachments/assets/9f999596-fd22-4a19-834f-997167372808" />
 
 LTTMv2 uses API GW, 3 Lambda functions, each invoking Amazon Bedrock sepparately.
