@@ -300,7 +300,7 @@ Deploy API Gateway:
 ./scripts/deploy_cf.sh intent
 ```
 
-2. **Run the project**
+2. **Run the project**  
 From commandline of root directory, run:
 ```bash
 ./script/alexandra.sh "<your question>"
