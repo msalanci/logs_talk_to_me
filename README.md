@@ -1,17 +1,17 @@
 # Logs talk to me
-This is the bot to have a chat with, about logs.
+This is the bot you can chat with, about logs.
 
 Analyzing CloudTrail logs can be complex, but what if you could simply ask, **_Tell me about the last 10 unsuccessful login attempts_**.  
-This project builds a conversational interface for **CloudTrail** logs using **Amazon Bedrock's LLM (Antropic Claude Sonnet 3.7)**, **Amazon Lex** for intent, **AWS Lambda** to connect it all and querry the logs from **CloudTrail lake**.
+This project provides a conversational interface for analyzing **CloudTrail** logs using **Amazon Bedrock's LLM (Antropic Claude Sonnet 3.7)**, **Amazon Lex** for intent, **AWS Lambda** to connect it all and query the logs from **CloudTrail lake**.
 
-It currently works only for CloudTrail logs regarding **_user management_**, but I am already working on more.
+It currently supports only CloudTrail logs related **_user management_**. For more broader version, please check LTTMv2.
 
 ### Prerequisites & good to knows
 1. You have to have your account(s) in **AWS Organizations**, with **Control Tower**. That's because it creates **Baseline Trail** and **S3 bucket** where all account(s) can send the CloudTrail logs
 
-2. Everything (except the creating the AWS Organization with Control Tower) is in CloudFormation template in folder `/codes`
+2. Everything (except for creating the AWS Organization with Control Tower) is in CloudFormation template in folder `/codes`
 
-3. Later, the code in this repo creates the **CloudTrail Lake (Event Data Store)** to gather all the logs. This project needs it, because it issues **SQL querries** towards it.
+3. Later, the code in this repo creates the **CloudTrail Lake (Event Data Store)** to gather all the logs. This project requires it, as it uses **SQL querries** to retrieve logs.
 
 4. Make some logs :) Please understand that in CloudTrail Lake you will see only logs that were created **after** the lake was deployed.
 
@@ -20,7 +20,7 @@ It currently works only for CloudTrail logs regarding **_user management_**, but
 
 Currently there are 2 versions available to download and work with.
 v1 - using Amazon Lex, single AWS Lambda function and Amazon Bedrock on 1 ivocation
-v2 - using AWS API Gateway, 3 AWS Lambda functions and Amazon Bedrock on 3 sepparate invocations 
+v2 - using AWS API Gateway, 3 AWS Lambda functions and Amazon Bedrock on 3 separate invocations 
 
 
 ## V1 - Lex, Lambda, Bedrock
@@ -29,7 +29,7 @@ This version is using **Amazon Lex** to:
 - Get the intent of the user's question
 - Get the summary response from Lambda function and forwards it back to the user.
 
-It also uses **AWS Lamnda function** to: 
+It also uses **AWS Lambda function** to: 
 - Create SQL query
 - Query the CloudTrail Event Data Store
 - Send query output to Bedrock model for summary
@@ -42,7 +42,7 @@ It also uses **AWS Lamnda function** to:
 
 1. User creates a question, which is sent to **Amazon Lex**.
 
-2. **Amazon Lex** takes the user imput, understands the user intentions and prepares it for processing by **AWS Lambda**.
+2. **Amazon Lex** takes the user input, understands the user intentions and prepares it for processing by **AWS Lambda**.
 
 3. **AWS Lambda** receives the user input from **Amazon Lex**  with the idea of user intention.  
 Based on the intent, **AWS Lambda** queries **cloudtrail lake** and receive the query response, creates the prompt and send it to **Amazon Bedrock**.
@@ -55,7 +55,7 @@ Based on the intent, **AWS Lambda** queries **cloudtrail lake** and receive the 
 
 For invoking **Amazon Lex**, user can use various methods, such as:
 - **Directly in AWS Console**
-- **Create a web frontned**
+- **Create a web frontend**
 - **Use a script**
 
 This version is using a `bash` script called `alexandra.sh`, to invoke the **Amazon Lex**.
@@ -65,7 +65,7 @@ When deploying CloudFormation template, check for parameters and add everything 
 
 - To `2-cloudtrail-lake.yaml` - nothing to add.
 
-- To `3-lambda.yaml` - add Bedrock Model ID. This code works with Antropic Cloude 3.7 and it's a default option in Cloud Formation parameters.
+- To `3-lambda.yaml` - add Bedrock Model ID. This code works with Anthropic Claude 3.7 and it's a default option in Cloud Formation parameters.
 
 - To `4-lex.yaml` - add AWS account IDs you are using (make sure to have AWS Organizations and Control Tower).
 This project is using 3 accounts, but if you have more or less, please update  
@@ -115,7 +115,7 @@ I suggest to deploy templates in right order:
 `2-cloudtrail-lake.yaml`
 `3-lambda.yaml`
 `4-lex.yaml`
-So far, templated must be deployed manualy.
+So far, templates must be deployed manually.
 
 ### Usage example
 From your terminal call `alexandra.sh` and state your question:
@@ -153,7 +153,7 @@ For more robust version, please proceed to **v2**.
 ### Introduction to v2
 This is more robust version than v1.
 The main differences against v1 are:
-- **Intent**, **SQL querry** and **summarization** arw being done by sepparate AWS Lamnda functions.
+- **Intent**, **SQL query** and **summarization** arw being done by sepparate AWS lambda functions.
 - **No Amazon Lex** is used - for Intent we are now using Amazon Bedrock model
 
 
@@ -164,20 +164,20 @@ AWS Lambda function `lttm-v2-lambda-intent`:
 - Is invoked by **API Gateway**.
 - Reads the the user's question (input) and parsing it to appropriate format.
 - Injects the input into a promt and send to **Amazon Bedrock model** to get the intent.
-- Recveives the intent from **Amazon Bedrock model** and sends it to AWS Lambda Function `lttm-v2-lambda-query`.
+- Receives the intent from **Amazon Bedrock model** and sends it to AWS Lambda Function `lttm-v2-lambda-query`.
 - Sends the final summary forwarded from AWS Lambda function `lttm-v2-lambda-query` back to **API Gateway**.
 
 AWS Lambda function `lttm-v2-lambda-query`:
 - Is invoked by **AWS Lambda function** `lttm-v2-lambda-intent`.
 - Receives the original user input and intent from AWS Lambda function `lttm-v2-lambda-intent`.
-- Parses all the data to appropriate format, injects into a prompt and sends to **Amazon Bedrock model** to determine the SQL querry.
+- Parses all the data to appropriate format, injects into a prompt and sends to **Amazon Bedrock model** to determine the SQL query.
 - Receives the SQL query created by **Amazon Bedrock model** and queries **CloudTrail Data Event Store**.
 - Receives the SQL query output and sends it to AWS Lambda function `lttm-v2-lambda-summarizer`.
 - Receives the final summarization from AWS Lambda function `lttm-v2-lambda-summarizer` and forwarding it to `lttm-v2-lambda-intent`.
 
 AWS Lambda function `lttm-v2-lambda-summarizer`:
 - Is invoked by AWS Lambda function `lttm-v2-lambda-query`.
-- Receives original user's input and querry output from AWS Lambda function `lttm-v2-lambda-query`.
+- Receives original user's input and query output from AWS Lambda function `lttm-v2-lambda-query`.
 - Determines the user's style (standard, funny, kids), injects all the data into prompt and sends to **Amazon Bedrock model** to explain the SQL query output.
 - Receives the **Amazon Bedrock model** output and forwards it to AWS Lambda function `lttm-v2-lambda-query`, which then forwards it to AWS Lambda function `lttm-v2-lambda-intent`, which then forwards it to AWS API Gateway, from where it gets to the user.
 
@@ -222,32 +222,31 @@ Files and folders are structured as follows:
 
 
 ##### Files
-`infrastructure/1-artifacts-bucket.yaml` - CloudFormation template to create S3 bucket for all artifacts, such as lamnda function codes. 
-`infrastructure/2-iam.yaml` - CloudFormation template for all IAM roles needed in this project. 
-`infrastructure/3-cloudtrail-lake.yaml` - CloudFormation template to create CloudTrail Event Data Store. 
-`infrastructure/4-layer-utils.yaml` - CloudFormation template to create Lambda Layer. 
-`infrastructure/5-lambda-summarizer.yaml` - CloudFormation template to create lttm-v2-lamnda-summarize function. 
-`infrastructure/6-lambda-query.yaml` - CloudFormation template to create lttm-v2-lamnda-query function. 
-`infrastructure/7-lambda-intent.yaml` - CloudFormation template to create lttm-v2-lamnda-intent function. 
-`infrastructure/8-api-gw.yaml` - CloudFormation template to create API Gateway. 
+`infrastructure/1-artifacts-bucket.yaml` - CloudFormation template to create S3 bucket for all artifacts, such as lambda function codes.  
+`infrastructure/2-iam.yaml` - CloudFormation template for all IAM roles needed in this project.  
+`infrastructure/3-cloudtrail-lake.yaml` - CloudFormation template to create CloudTrail Event Data Store.  
+`infrastructure/4-layer-utils.yaml` - CloudFormation template to create Lambda Layer.  
+`infrastructure/5-lambda-summarizer.yaml` - CloudFormation template to create lttm-v2-lambda-summarizer function.  
+`infrastructure/6-lambda-query.yaml` - CloudFormation template to create lttm-v2-lambda-query function.  
+`infrastructure/7-lambda-intent.yaml` - CloudFormation template to create lttm-v2-lambda-intent function.  
+`infrastructure/8-api-gw.yaml` - CloudFormation template to create API Gateway.  
 
-`lambdas/lttm_intent/lambda_function.py` - Python 3.12 code for lttm-v2-lamnda-intent function, being stored in S3 bucket for artifacts. 
-`lambdas/lttm_query/lambda_function.py` - Python 3.12 code for lttm-v2-lamnda-query function, being stored in S3 bucket for artifacts. 
-`lambdas/lttm_summarizer/lambda_function.py` - Python 3.12 code for lttm-v2-lamnda-summarize function, being stored in S3 bucket for artifacts. 
+`lambdas/lttm_intent/lambda_function.py` - Python 3.12 code for lttm-v2-lambda-intent function, being stored in S3 bucket for artifacts.  
+`lambdas/lttm_query/lambda_function.py` - Python 3.12 code for lttm-v2-lambda-query function, being stored in S3 bucket for artifacts.  
+`lambdas/lttm_summarizer/lambda_function.py` - Python 3.12 code for lttm-v2-lambda-summarize function, being stored in S3 bucket for artifacts.  
 
-`lttm_utils/prompt_intent.py` - Helper module to create Bedrock prompt for lttm-v2-lamnda-intent function. 
-`lttm_utils/prompt_query.py` - Helper module to create Bedrock prompt for lttm-v2-lamnda-query function. 
-`lttm_utils/prompt_summarizer.py` - Helper module to create Bedrock prompt for lttm-v2-lamnda-summarizer function. 
-`lttm_utils/utils.py` - Reusable content for all lambnda functions. 
+`lttm_utils/prompt_intent.py` - Helper module to create Bedrock prompt for lttm-v2-lambda-intent function.  
+`lttm_utils/prompt_query.py` - Helper module to create Bedrock prompt for lttm-v2-lambda-query function.  
+`lttm_utils/prompt_summarizer.py` - Helper module to create Bedrock prompt for lttm-v2-lambda-summarizer function.  
+`lttm_utils/utils.py` - Reusable content for all lambnda functions.  
 
-`scripts/alexandra.sh` - Bash script for users to ask the questions. 
-`scripts/deploy_cf.sh` - Bash script to deploy CloudFormation template.  
+`scripts/alexandra.sh` - Bash script for users to ask the questions.  
+`scripts/deploy_cf.sh` - Bash script to deploy CloudFormation template.   
 
 
 ### Deployment
 Deployment is being done by CloudFormation, with `deploy_cf.sh` script, directly from CLI.  
 If you don't have the AWS CLI and IAM User in the AWS account, you can deploy it manually
-
 
 
 ### Usage example
@@ -256,8 +255,8 @@ If you don't have the AWS CLI and IAM User in the AWS account, you can deploy it
 
 1. **Initial deployment**
 - Use script `deploy_cf.sh` to deploy CloudFormation template
-- do it from the root folder of the project
-- follow this principle and order:
+- Run it from the root folder of the project
+- Follow this principle and order:
 
 Deploy S3 bucket for artifacts:
 ```bash
