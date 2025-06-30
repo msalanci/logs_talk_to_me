@@ -153,7 +153,7 @@ This version can only work with **limited amount of intents**, so only questions
 For more robust version, please proceed to **v2**.
 
 ## V2 - API GW, Lambdas, Bedrock
-LTTMv2 is in branch **master**
+LTTMv2 staus currently in branch **master** https://github.com/msalanci/logs_talk_to_me/tree/master
 
 ### Introduction to v2
 This is more robust version than v1.
