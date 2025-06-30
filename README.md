@@ -241,7 +241,7 @@ Files and folders are structured as follows:
 
 
 ### Deployment
-Deployment is being done by CloudFormation, with `deploy_cf.sh` script, directly from CLI.
+Deployment is being done by CloudFormation, with `deploy_cf.sh` script, directly from CLI. 
 If you don't have the AWS CLI and IAM User in the AWS account, you can deploy it manually
 
 
