@@ -25,6 +25,9 @@ v2 - using AWS API Gateway, 3 AWS Lambda functions and Amazon Bedrock on 3 separ
 
 ## V1 - Lex, Lambda, Bedrock
 ### Introduction to v1
+
+LTTMv1 was moved to sepparate branch https://github.com/msalanci/logs_talk_to_me/tree/v1
+
 This version is using **Amazon Lex** to: 
 - Get the intent of the user's question
 - Get the summary response from Lambda function and forwards it back to the user.
@@ -150,6 +153,8 @@ This version can only work with **limited amount of intents**, so only questions
 For more robust version, please proceed to **v2**.
 
 ## V2 - API GW, Lambdas, Bedrock
+LTTMv2 staus currently in branch **master** https://github.com/msalanci/logs_talk_to_me/tree/master
+
 ### Introduction to v2
 This is more robust version than v1.
 The main differences against v1 are:
