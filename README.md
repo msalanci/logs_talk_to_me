@@ -213,36 +213,39 @@ Files and folders are structured as follows:
 
 ##### Folders
 `infrastructure/` contains AWS CloudFormation templates.  
+
 `lambdas/` contains lambda functions codes.  
+
 `lttm_utils/` contains lambda layers and helper functions.  
+
 `scripts/` contains scripts to deploy or run the project.  
 
+
 ##### Files
-`infrastructure/1-artifacts-bucket.yaml` - CloudFormation template to create S3 bucket for all artifacts, such as lamnda function codes.  
-`infrastructure/2-iam.yaml` - CloudFormation template for all IAM roles needed in this project.  
-`infrastructure/3-cloudtrail-lake.yaml` - CloudFormation template to create CloudTrail Event Data Store.  
-`infrastructure/4-layer-utils.yaml` - CloudFormation template to create Lambda Layer.  
-`infrastructure/5-lambda-summarizer.yaml` - CloudFormation template to create lttm-v2-lamnda-summarize function.  
-`infrastructure/6-lambda-query.yaml` - CloudFormation template to create lttm-v2-lamnda-query function.  
-`infrastructure/7-lambda-intent.yaml` - CloudFormation template to create lttm-v2-lamnda-intent function.  
-`infrastructure/8-api-gw.yaml` - CloudFormation template to create API Gateway
+`infrastructure/1-artifacts-bucket.yaml` - CloudFormation template to create S3 bucket for all artifacts, such as lamnda function codes.
+`infrastructure/2-iam.yaml` - CloudFormation template for all IAM roles needed in this project.
+`infrastructure/3-cloudtrail-lake.yaml` - CloudFormation template to create CloudTrail Event Data Store.
+`infrastructure/4-layer-utils.yaml` - CloudFormation template to create Lambda Layer.
+`infrastructure/5-lambda-summarizer.yaml` - CloudFormation template to create lttm-v2-lamnda-summarize function.
+`infrastructure/6-lambda-query.yaml` - CloudFormation template to create lttm-v2-lamnda-query function.
+`infrastructure/7-lambda-intent.yaml` - CloudFormation template to create lttm-v2-lamnda-intent function.
+`infrastructure/8-api-gw.yaml` - CloudFormation template to create API Gateway.
 
-`lambdas/lttm_intent/lambda_function.py` - Python 3.12 code for lttm-v2-lamnda-intent function, being stored in S3 bucket for artifacts.  
-`lambdas/lttm_query/lambda_function.py` - Python 3.12 code for lttm-v2-lamnda-query function, being stored in S3 bucket for artifacts.  
-`lambdas/lttm_summarizer/lambda_function.py` - Python 3.12 code for lttm-v2-lamnda-summarize function, being stored in S3 bucket for artifacts.  
+`lambdas/lttm_intent/lambda_function.py` - Python 3.12 code for lttm-v2-lamnda-intent function, being stored in S3 bucket for artifacts.
+`lambdas/lttm_query/lambda_function.py` - Python 3.12 code for lttm-v2-lamnda-query function, being stored in S3 bucket for artifacts.
+`lambdas/lttm_summarizer/lambda_function.py` - Python 3.12 code for lttm-v2-lamnda-summarize function, being stored in S3 bucket for artifacts.
 
-`lttm_utils/prompt_intent.py` - Helper module to create Bedrock prompt for lttm-v2-lamnda-intent function.  
-`lttm_utils/prompt_query.py` - Helper module to create Bedrock prompt for lttm-v2-lamnda-query function.  
-`lttm_utils/prompt_summarizer.py` - Helper module to create Bedrock prompt for lttm-v2-lamnda-summarizer function.  
-`lttm_utils/utils.py` - Reusable content for all lambnda functions.  
+`lttm_utils/prompt_intent.py` - Helper module to create Bedrock prompt for lttm-v2-lamnda-intent function.
+`lttm_utils/prompt_query.py` - Helper module to create Bedrock prompt for lttm-v2-lamnda-query function.
+`lttm_utils/prompt_summarizer.py` - Helper module to create Bedrock prompt for lttm-v2-lamnda-summarizer function.
+`lttm_utils/utils.py` - Reusable content for all lambnda functions.
 
 `scripts/alexandra.sh` - Bash script for users to ask the questions.  
 `scripts/deploy_cf.sh` - Bash script to deploy CloudFormation template.  
 
 
 ### Deployment
-Deployment is being done by CloudFormation, with `deploy_cf.sh` script, directly from CLI.
-
+Deployment is being done by CloudFormation, with `deploy_cf.sh` script, directly from CLI. 
 If you don't have the AWS CLI and IAM User in the AWS account, you can deploy it manually
 
 
