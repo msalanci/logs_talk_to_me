@@ -156,10 +156,9 @@ The main differences against v1 are:
 - **Intent**, **SQL query** and **summarization** arw being done by sepparate AWS lambda functions.
 - **No Amazon Lex** is used - for Intent we are now using Amazon Bedrock model
 
-
 ### Architectural overview and description of v2
 
-<img width="13" alt="image" src="https://github.com/user-attachments/assets/9f999596-fd22-4a19-834f-997167372808" />
+<img width="838" alt="Screenshot 2025-06-30 at 16 34 59" src="https://github.com/user-attachments/assets/4b28a8cd-fa98-444e-9174-8edfca920022" />
 
 LTTMv2 uses API GW, 3 Lambda functions, each invoking Amazon Bedrock sepparately.
 
