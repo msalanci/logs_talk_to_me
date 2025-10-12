@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: MIT
+# Copyright (c) 2025 Michal Salanci
 ---
 AWSTemplateFormatVersion: '2010-09-09'
 Description: LTTMv2 API Gateway to invoke lttm-v2-lambda-intent function

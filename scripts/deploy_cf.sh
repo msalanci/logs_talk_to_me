@@ -1,4 +1,6 @@
 #!/bin/bash
+# SPDX-License-Identifier: MIT
+# Copyright (c) 2025 Michal Salanci
 
 # Usage:
 #   ./scripts/deploy_cf.sh intent

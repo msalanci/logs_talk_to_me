@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: MIT
+# Copyright (c) 2025 Michal Salanci
 ---
 AWSTemplateFormatVersion: '2010-09-09'
 Description: LTTM v2 lambda function, to detect intent and extract the slots from user query, using Bedrock model.

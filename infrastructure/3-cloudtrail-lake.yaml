@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: MIT
+# Copyright (c) 2025 Michal Salanci
 ---
 AWSTemplateFormatVersion: '2010-09-09'
 Description: CloudTrail Lake for LTTM projetct and all its version, gathering CloudTrail logs from all accounts within AWS Organization

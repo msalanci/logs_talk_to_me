@@ -1,3 +1,6 @@
+# SPDX-License-Identifier: MIT
+# Copyright (c) 2025 Michal Salanci
+
 """
 lambda_summarizer.py for LTTMv2
 

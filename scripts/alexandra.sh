@@ -1,4 +1,6 @@
 #!/bin/bash
+# SPDX-License-Identifier: MIT
+# Copyright (c) 2025 Michal Salanci
 
 # use it for LTTMV2 - aka: 3 models - by invoking API GW
 # Usage: ./alexandra.sh "your question here"

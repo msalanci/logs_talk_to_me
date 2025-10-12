@@ -1,5 +1,7 @@
-# lttm_utils/prompt_query.py (Lambda Layer for LTTMv2)
+# SPDX-License-Identifier: MIT
+# Copyright (c) 2025 Michal Salanci
 
+# lttm_utils/prompt_query.py (Lambda Layer for LTTMv2)
 """
 Prompt builder for the lambda_query Lambda in LTTMv2.
 
