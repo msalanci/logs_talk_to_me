@@ -146,7 +146,4 @@ Alexandra asking Lex: last 3 user names to account 123456789012
 This version can only work with **limited amount of intents**, so only questions regarding **user management** are valid.
 For more robust version, please proceed to **v2**.
 
-## V2 - API GW, Lambdas, Bedrock
-LTTMv2 staus currently in branch **master** https://github.com/msalanci/logs_talk_to_me/tree/master
-
 ---
