@@ -9,18 +9,23 @@ It currently supports only CloudTrail logs related **_user management_**. For mo
 ### Prerequisites & good to knows
 1. You have to have your account(s) in **AWS Organizations**, with **Control Tower**. That's because it creates **Baseline Trail** and **S3 bucket** where all account(s) can send the CloudTrail logs
 
-2. Everything (except for creating the AWS Organization with Control Tower) is in CloudFormation template in folder `/codes`
+2a. For versions v1 and v2 - everything (except for creating the AWS Organization with Control Tower) is in CloudFormation template in folder `/codes`
 
-3. Later, the code in this repo creates the **CloudTrail Lake (Event Data Store)** to gather all the logs. This project requires it, as it uses **SQL querries** to retrieve logs.
+2b. For version 3 - the whole infrastructure is deployed with terraform, from folder `/terraform`
 
-4. Make some logs :) Please understand that in CloudTrail Lake you will see only logs that were created **after** the lake was deployed.
+1. Depending on the version, the code in this repo creates or not creates the **CloudTrail Lake (Event Data Store)** to gather all the logs
+- v1 and v2 require it, as it uses **SQL querries** to retrieve logs.
+- v3 does not need it at all, as it uses S3 DataLake
 
-5. Having AWS CLI and User in the AWS account is recommended.  
+2. Make some logs :) Please understand that in CloudTrail Lake you will see only logs that were created **after** the lake was deployed.
+
+3. Having AWS CLI and User in the AWS account is recommended.  
 
 
-Currently there are 2 versions available to download and work with.
+Currently there are 3 versions available to download and work with.
 v1 - using Amazon Lex, single AWS Lambda function and Amazon Bedrock on 1 ivocation
 v2 - using AWS API Gateway, 3 AWS Lambda functions and Amazon Bedrock on 3 separate invocations 
+v3 - reading multiple datasources and using AI agents
 
 
 ## V1 - Lex, Lambda, Bedrock
@@ -155,7 +160,12 @@ For more robust version, please proceed to **v2**.
 ## V2 - API GW, Lambdas, Bedrock
 LTTMv2 staus currently in branch **master** https://github.com/msalanci/logs_talk_to_me/tree/master
 
+---
+
 ### Introduction to v2
+
+LTTMv1 was moved to sepparate branch https://github.com/msalanci/logs_talk_to_me/tree/v2
+
 This is more robust version than v1.
 The main differences against v1 are:
 - **Intent**, **SQL query** and **summarization** arw being done by sepparate AWS lambda functions.
@@ -309,3 +319,10 @@ Deploy API Gateway:
 From commandline of root directory, run:
 ```bash
 ./script/alexandra.sh "<your question>"
+```
+
+---
+
+### Introduction to v3
+
+LTTMv1 was moved to sepparate branch https://github.com/msalanci/logs_talk_to_me/tree/v3
