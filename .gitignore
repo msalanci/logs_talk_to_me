@@ -1,5 +1,52 @@
-# macOS hidden files
-.DS_Store
-
 # notes
 notes.txt
+
+# opened files
+*~$*
+
+# virtual envs directories and virtual envs
+venv*
+.venv/
+venv/
+env/
+ENV/
+
+# # Also ignore any nested venvs anywhere
+# **/.venv/
+# **/venv/
+# **/env/
+
+# hidden files and folders
+.DS_Store
+.hypothesis/
+.hypothesis/**
+.bedrock_agentcore/
+.bedrock_agentcore/**
+.terraform/
+.terraform/**
+.pytest_cache/
+.pytest_cache/**
+
+# Dependencies
+**/node_modules/
+
+# Python bytecode
+**/__pycache__/
+**/*.pyc
+
+# Logs
+**/*.log
+
+# Private keys
+**/*.pem
+
+# Terraform / Terragrunt
+**/.terraform/
+**/.terragrunt-cache/
+**/*.tfstate
+**/*.tfstate.backup
+**/.terraform.lock.hcl
+**/.terragrunt-tmp/
+**/.terraform.tfstate.lock.info
+**/crash.log
+**/crash.*.log
