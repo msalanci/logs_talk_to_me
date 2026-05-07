@@ -1,52 +1,45 @@
-# notes
+# Personal notes (not part of the project)
 notes.txt
 
-# opened files
+# macOS system files
+.DS_Store
+
+# Office / editor lock and temporary files
 *~$*
 
-# virtual envs directories and virtual envs
+# Python virtual environments
 venv*
 .venv/
 venv/
 env/
 ENV/
 
-# # Also ignore any nested venvs anywhere
-# **/.venv/
-# **/venv/
-# **/env/
+# Node.js dependencies
+node_modules/
 
-# hidden files and folders
-.DS_Store
+# Python files
 .hypothesis/
-.hypothesis/**
-.bedrock_agentcore/
-.bedrock_agentcore/**
-.terraform/
-.terraform/**
 .pytest_cache/
-.pytest_cache/**
+__pycache__/
+*.pyc
 
-# Dependencies
-**/node_modules/
+# Bedrock files
+.bedrock_agentcore/
+.bedrock_agentcore.*
 
-# Python bytecode
-**/__pycache__/
-**/*.pyc
+# Log files
+*.log
 
-# Logs
-**/*.log
+# Private keys and certificates
+*.pem
 
-# Private keys
-**/*.pem
-
-# Terraform / Terragrunt
-**/.terraform/
-**/.terragrunt-cache/
-**/*.tfstate
-**/*.tfstate.backup
-**/.terraform.lock.hcl
-**/.terragrunt-tmp/
-**/.terraform.tfstate.lock.info
-**/crash.log
-**/crash.*.log
+# Terraform / Terragrunt files
+.terraform/
+.terragrunt-cache/
+.terragrunt-tmp/
+*.tfstate
+*.tfstate.backup
+.terraform.lock.hcl
+.terraform.tfstate.lock.info
+crash.log
+crash.*.log
