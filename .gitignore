@@ -23,6 +23,9 @@ node_modules/
 __pycache__/
 *.pyc
 
+# Agents
+agents/hooks/retired/
+
 # Bedrock files
 .bedrock_agentcore/
 .bedrock_agentcore.*
@@ -43,3 +46,9 @@ __pycache__/
 .terraform.tfstate.lock.info
 crash.log
 crash.*.log
+terraform/terraform.tfvars
+terraform/tests/
+terraform/lambda/*.zip
+terraform-bootstrap/terraform.tfvars
+*.auto.tfvars
+*.tfplan

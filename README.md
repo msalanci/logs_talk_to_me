@@ -1,3 +1,6 @@
+<!-- Copyright (c) 2026 Michal Salanci -->
+<!-- SPDX-License-Identifier: MIT -->
+
 # Logs talk to me
 This is the bot you can chat with, about logs.
 
