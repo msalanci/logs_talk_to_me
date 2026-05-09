@@ -1,6 +1,23 @@
 <!-- Copyright (c) 2026 Michal Salanci -->
 <!-- SPDX-License-Identifier: MIT -->
 
+
+
+
+
+1. declare variables into terraform-bootstrap/terraform.tfvars
+2. create backed bucket, by running terraform-bootstrap
+3. run terraform-bootstrap
+4. declare variables into terraform/terraform.tfvars
+4a. If there are no DNS zones, projet will still run
+5. optionally put defaults into terraform/variables.tf
+6. manually hardcode backend bucket name into terraform/backend.tf
+   
+
+
+
+
+
 # Logs talk to me
 This is the bot you can chat with, about logs.
 

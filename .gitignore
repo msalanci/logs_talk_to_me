@@ -1,3 +1,6 @@
+# Copyright (c) 2026 Michal Salanci
+# SPDX-License-Identifier: MIT
+
 # Personal notes (not part of the project)
 notes.txt
 
@@ -23,8 +26,11 @@ node_modules/
 __pycache__/
 *.pyc
 
-# Agents
+# Project files
 agents/hooks/retired/
+tests/
+scripts/
+.NOTES.txt
 
 # Bedrock files
 .bedrock_agentcore/
@@ -46,9 +52,9 @@ agents/hooks/retired/
 .terraform.tfstate.lock.info
 crash.log
 crash.*.log
-terraform/terraform.tfvars
+# terraform/terraform.tfvars
 terraform/tests/
 terraform/lambda/*.zip
-terraform-bootstrap/terraform.tfvars
+# terraform-bootstrap/terraform.tfvars
 *.auto.tfvars
 *.tfplan
