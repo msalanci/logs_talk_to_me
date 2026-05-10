@@ -6,11 +6,11 @@ organizations_agent.py — AWS Organizations sub-agent for org structure analysi
 
 Registered on supervisor_agent.py as @tool query_organizations.
 
-API-based agent — calls AWS Organizations boto3 APIs directly through `query_organizations_api` (DescribeOrganization, ListAccounts, ListPolicies, ListOrganizationalUnitsForParent, etc.). 
+API-based agent — calls AWS Organizations boto3 APIs directly through `query_organizations_api` (DescribeOrganization, ListAccounts, ListPolicies, ListOrganizationalUnitsForParent, etc.).
 No Athena, Glue, or S3 infrastructure needed.
 
-Management-account only — all calls run with the execution role's default credentials. 
-No cross-account STS role assumption needed because Organizations is a management-account-only service by design. 
+Management-account only — all calls run with the execution role's default credentials.
+No cross-account STS role assumption needed because Organizations is a management-account-only service by design.
 The Organizations API is global — region is irrelevant.
 
 Supports hierarchy walking: DescribeOrganization → list_ous_for_parent → list_accounts_for_parent, recursively down the OU tree to build a full organizational structure view.
@@ -18,284 +18,115 @@ Supports hierarchy walking: DescribeOrganization → list_ous_for_parent → lis
 Uses Claude Sonnet for routing and action selection; the actual org data comes straight from the AWS API.
 """
 
-import json
-import boto3
-from botocore.exceptions import ClientError
-from strands import tool
+from strands import Agent, tool
+from tools.organizations_tool import query_organizations_api
+import utils.agent_vars as vars
 from utils.sse_emitter import emit_status
-import utils.agent_vars as _vars
+from utils.agent_wrapper import _extract_raw_result
+from plugins.logging_plugin import LTTMLoggingPlugin
 
+ORGANIZATIONS_SYSTEM_PROMPT = f"""
+# Role
+You are an AWS Organizations analyst — a senior AWS engineer specializing in organizational structure, account membership, OU hierarchy, and policy attachments. You translate natural language questions about the AWS Organization into query_organizations_api tool calls and return the raw results.
 
-def _get_org_client():
-    """Return a boto3 Organizations client. No region needed — global service."""
-    return boto3.client("organizations")
+# Instructions
+Translate the user's natural language question about AWS Organizations into one or more query_organizations_api tool calls with the appropriate action and parameters. Today is {vars.TODAY} (UTC). Year={vars.YEAR}, Month={vars.MONTH}, Day={vars.DAY}.
 
+# Steps
+1. Parse the question to identify: what the user wants (list of accounts, OU hierarchy, policies, specific policy content, specific OU), any parent or target ID mentioned, and any policy type filter.
+2. Pick the correct action for the question using the reference table below.
+3. Fill in the parameters required by that action (parent_id, target_id, policy_id, policy_type).
+4. Call query_organizations_api with those parameters.
+5. If the question requires hierarchy walking (e.g. "show me the full org tree"), chain multiple calls: describe_organization → list_ous_for_parent → list_accounts_for_parent, recursively.
+6. Return the raw results exactly as returned by the tool.
 
-def _format_account(account: dict) -> str:
-    """Format a single account dict into a human-readable text block."""
-    return (
-        f"--- Account ---\n"
-        f"ID: {account.get('Id', 'N/A')}\n"
-        f"Name: {account.get('Name', 'N/A')}\n"
-        f"Email: {account.get('Email', 'N/A')}\n"
-        f"Status: {account.get('Status', 'N/A')}\n"
-        f"Joined: {account.get('JoinedTimestamp', 'N/A')}\n"
-        f"Method: {account.get('JoinedMethod', 'N/A')}"
-    )
+# Expectation
+- Return raw org data without summarizing or paraphrasing.
+- If query_organizations_api returns no results, say so clearly (e.g. "No organizational units found under parent r-abcd.").
+- If query_organizations_api returns an error, return the error message as-is.
+- If the tool output contains a "--- NOTICE ---" section about truncated results, include that notice verbatim.
 
+# Narrowing
+- Do NOT fabricate, invent, or hallucinate organizational data. ONLY present data returned by query_organizations_api.
+- Do NOT answer questions outside the scope of AWS Organizations (e.g., CloudTrail, CloudWatch, Config, CUR, Health questions).
+- Do NOT call run_athena_query — this agent uses query_organizations_api only.
+- Do NOT summarize or interpret policies — return raw data for the supervisor to synthesize.
 
-def _format_ou(ou: dict) -> str:
-    """Format a single OU dict into a human-readable text block."""
-    return (
-        f"--- Organizational Unit ---\n"
-        f"ID: {ou.get('Id', 'N/A')}\n"
-        f"ARN: {ou.get('Arn', 'N/A')}\n"
-        f"Name: {ou.get('Name', 'N/A')}"
-    )
+## Reference: Available actions
 
+| Action | Description | Required params |
+|--------|-------------|-----------------|
+| describe_organization | Organization ID, management account, feature set, available policy types | (none) |
+| list_accounts | All accounts in the organization | (none; optional max_results) |
+| list_ous_for_parent | OUs directly under a root or OU | parent_id |
+| describe_ou | Details for a single OU | target_id (OU ID) |
+| list_accounts_for_parent | Accounts directly under a root or OU | parent_id |
+| list_policies | All policies of a given type | policy_type |
+| list_policies_for_target | Policies attached to a specific root, OU, or account | target_id, policy_type |
+| describe_policy | Full policy document (content) | policy_id |
 
-def _format_policy(policy: dict, include_content: bool = False) -> str:
-    """Format a single policy dict into a human-readable text block."""
-    lines = [
-        "--- Policy ---",
-        f"ID: {policy.get('Id', 'N/A')}",
-        f"Name: {policy.get('Name', 'N/A')}",
-        f"Description: {policy.get('Description', 'N/A')}",
-        f"Type: {policy.get('Type', 'N/A')}",
-        f"AWS Managed: {policy.get('AwsManaged', False)}",
-    ]
-    if include_content:
-        content = policy.get('Content', '')
-        if content:
-            try:
-                parsed = json.loads(content) if isinstance(content, str) else content
-                lines.append(f"Content:\n{json.dumps(parsed, indent=2)}")
-            except (json.JSONDecodeError, TypeError):
-                lines.append(f"Content: {content}")
-    return "\n".join(lines)
+## Reference: Policy types
 
+| policy_type value | What it is |
+|-------------------|------------|
+| SERVICE_CONTROL_POLICY | SCPs — permission boundaries for accounts and OUs (default) |
+| TAG_POLICY | Rules for resource tags |
+| BACKUP_POLICY | AWS Backup plans |
+| AISERVICES_OPT_OUT_POLICY | AI service opt-out preferences |
 
-def _format_org(org: dict) -> str:
-    """Format organization info into a human-readable text block."""
-    policy_types = org.get("AvailablePolicyTypes", [])
-    policy_str = ", ".join(
-        f"{pt.get('Type', 'N/A')} ({pt.get('Status', 'N/A')})"
-        for pt in policy_types
-    ) if policy_types else "None"
+If the user says "SCP", "service control policy", or doesn't specify, use SERVICE_CONTROL_POLICY.
 
-    return (
-        f"--- Organization ---\n"
-        f"ID: {org.get('Id', 'N/A')}\n"
-        f"ARN: {org.get('Arn', 'N/A')}\n"
-        f"Master Account: {org.get('MasterAccountId', 'N/A')}\n"
-        f"Master Email: {org.get('MasterAccountEmail', 'N/A')}\n"
-        f"Feature Set: {org.get('FeatureSet', 'N/A')}\n"
-        f"Available Policy Types: {policy_str}"
-    )
+## Reference: Account mapping
+
+| Account ID | Label |
+|------------|-------|
+| {vars.ACC1_ID} | {vars.ACC1_LABEL} (management account) |
+| {vars.ACC2_ID} | {vars.ACC2_LABEL} |
+| {vars.ACC3_ID} | {vars.ACC3_LABEL} |
+
+Organizations API always runs against the management account ({vars.ACC1_ID}). The account_id parameter is for interface consistency only.
+
+## Reference: Region
+
+Organizations is a global service. Calls are routed through us-east-1. The region parameter is for interface consistency only.
+
+## Reference: Routing distinction
+
+- Organizations = "what's the org structure / what policies apply / what accounts exist" — org hierarchy, member accounts, OUs, SCPs
+- CloudTrail = "what API calls happened" — who did what, when, from where
+- Access Analyzer = "what's exposed externally" — public access, cross-account sharing
+- Config = "what resources exist or what changed" — resource inventory and configuration changes
+"""
+
+organizations_agent = Agent(
+    model=vars.US_SONNET,
+    tools=[query_organizations_api],
+    hooks=[],
+    system_prompt=ORGANIZATIONS_SYSTEM_PROMPT,
+)
 
 
 @tool
-def query_organizations_api(
-    account_id: str = _vars.ACC1_ID,
-    action: str = "list_accounts",
-    region: str = "us-east-1",
-    parent_id: str = "",
-    target_id: str = "",
-    policy_id: str = "",
-    policy_type: str = "SERVICE_CONTROL_POLICY",
-    max_results: int = 100,
-) -> str:
+def query_organizations(question: str) -> str:
     """
-    Query AWS Organizations structure for a specific AWS account.
+    Accepts a natural language question about AWS Organizations structure.
+    Routes it to the Organizations sub-agent, which calls the Organizations API directly.
+    Returns raw organizational data as a string, or a structured error message.
 
-    Calls the AWS Organizations boto3 API to retrieve organizational data: accounts, OUs, policies, and hierarchy. 
-    Management-account only — no cross-account role assumption needed. Organizations API is global.
-
-    Args:
-        account_id: AWS account ID (default: management account). For interface consistency only — Organizations API always uses management account credentials.
-        action: API action — describe_organization, list_accounts (default), list_ous_for_parent, describe_ou, list_accounts_for_parent, list_policies, list_policies_for_target, or describe_policy.
-        region: AWS region (default: us-east-1). Organizations API is global — this parameter is for interface consistency only.
-        parent_id: Parent ID (root or OU) for list_ous_for_parent and list_accounts_for_parent.
-        target_id: Target ID (root, OU, or account) for list_policies_for_target and describe_ou.
-        policy_id: Policy ID for describe_policy.
-        policy_type: Policy type filter: SERVICE_CONTROL_POLICY (default), TAG_POLICY, BACKUP_POLICY, AISERVICES_OPT_OUT_POLICY.
-        max_results: Maximum number of items to return (default: 100).
-
-    Returns:
-        Formatted string with organizational data, or an error message.
+    Use this for questions about: organization structure, member accounts, OU hierarchy,
+    SCPs and other organization policies, "what accounts are in the org", "which SCPs
+    apply to X", "what's the org structure", "list member accounts", "describe the
+    dev OU".
     """
-
-    emit_status(f"Querying Organizations ({action})...", source="organizations_tool")
-
     try:
-        client = _get_org_client()
+        emit_status("Organizations agent processing...", source="organizations_agent")
+        result = organizations_agent(question)
+        emit_status("Organizations agent returning results to supervisor.", source="organizations_agent")
 
-        if action == "describe_organization":
-            response = client.describe_organization()
-            org = response.get("Organization", {})
-            result = _format_org(org)
-            print(f"[LTTM:Organizations] Returning organization info", flush=True)
-            emit_status("Organizations query complete", source="organizations_tool")
-            return result
-
-        elif action == "list_accounts":
-            all_accounts = []
-            next_token = None
-            while True:
-                kwargs = {"MaxResults": min(max_results - len(all_accounts), 20)}
-                if next_token:
-                    kwargs["NextToken"] = next_token
-                response = client.list_accounts(**kwargs)
-                all_accounts.extend(response.get("Accounts", []))
-                next_token = response.get("NextToken")
-                if not next_token or len(all_accounts) >= max_results:
-                    break
-            if not all_accounts:
-                return "No accounts found in the organization."
-            formatted = [_format_account(a) for a in all_accounts]
-            count = len(all_accounts)
-            print(f"[LTTM:Organizations] Returning {count} accounts", flush=True)
-            emit_status(f"Organizations query complete — {count} accounts", source="organizations_tool")
-            return "\n\n".join(formatted)
-
-        elif action == "list_ous_for_parent":
-            if not parent_id:
-                return "Error: parent_id is required for list_ous_for_parent."
-            all_ous = []
-            next_token = None
-            while True:
-                kwargs = {"ParentId": parent_id, "MaxResults": min(max_results - len(all_ous), 20)}
-                if next_token:
-                    kwargs["NextToken"] = next_token
-                response = client.list_organizational_units_for_parent(**kwargs)
-                all_ous.extend(response.get("OrganizationalUnits", []))
-                next_token = response.get("NextToken")
-                if not next_token or len(all_ous) >= max_results:
-                    break
-            if not all_ous:
-                return f"No organizational units found under parent {parent_id}."
-            formatted = [_format_ou(ou) for ou in all_ous]
-            count = len(all_ous)
-            print(f"[LTTM:Organizations] Returning {count} OUs for parent {parent_id}", flush=True)
-            emit_status(f"Organizations query complete — {count} OUs", source="organizations_tool")
-            return "\n\n".join(formatted)
-
-        elif action == "describe_ou":
-            if not target_id:
-                return "Error: target_id (OU ID) is required for describe_ou."
-            response = client.describe_organizational_unit(OrganizationalUnitId=target_id)
-            ou = response.get("OrganizationalUnit", {})
-            result = _format_ou(ou)
-            print(f"[LTTM:Organizations] Returning OU details for {target_id}", flush=True)
-            emit_status("Organizations query complete", source="organizations_tool")
-            return result
-
-        elif action == "list_accounts_for_parent":
-            if not parent_id:
-                return "Error: parent_id is required for list_accounts_for_parent."
-            all_accounts = []
-            next_token = None
-            while True:
-                kwargs = {"ParentId": parent_id, "MaxResults": min(max_results - len(all_accounts), 20)}
-                if next_token:
-                    kwargs["NextToken"] = next_token
-                response = client.list_accounts_for_parent(**kwargs)
-                all_accounts.extend(response.get("Accounts", []))
-                next_token = response.get("NextToken")
-                if not next_token or len(all_accounts) >= max_results:
-                    break
-            if not all_accounts:
-                return f"No accounts found under parent {parent_id}."
-            formatted = [_format_account(a) for a in all_accounts]
-            count = len(all_accounts)
-            print(f"[LTTM:Organizations] Returning {count} accounts for parent {parent_id}", flush=True)
-            emit_status(f"Organizations query complete — {count} accounts", source="organizations_tool")
-            return "\n\n".join(formatted)
-
-        elif action == "list_policies":
-            all_policies = []
-            next_token = None
-            while True:
-                kwargs = {"Filter": policy_type, "MaxResults": min(max_results - len(all_policies), 20)}
-                if next_token:
-                    kwargs["NextToken"] = next_token
-                response = client.list_policies(**kwargs)
-                all_policies.extend(response.get("Policies", []))
-                next_token = response.get("NextToken")
-                if not next_token or len(all_policies) >= max_results:
-                    break
-            if not all_policies:
-                return f"No policies of type {policy_type} found."
-            formatted = [_format_policy(p) for p in all_policies]
-            count = len(all_policies)
-            print(f"[LTTM:Organizations] Returning {count} policies of type {policy_type}", flush=True)
-            emit_status(f"Organizations query complete — {count} policies", source="organizations_tool")
-            return "\n\n".join(formatted)
-
-        elif action == "list_policies_for_target":
-            if not target_id:
-                return "Error: target_id is required for list_policies_for_target."
-            all_policies = []
-            next_token = None
-            while True:
-                kwargs = {"TargetId": target_id, "Filter": policy_type,
-                          "MaxResults": min(max_results - len(all_policies), 20)}
-                if next_token:
-                    kwargs["NextToken"] = next_token
-                response = client.list_policies_for_target(**kwargs)
-                all_policies.extend(response.get("Policies", []))
-                next_token = response.get("NextToken")
-                if not next_token or len(all_policies) >= max_results:
-                    break
-            if not all_policies:
-                return f"No policies of type {policy_type} attached to target {target_id}."
-            formatted = [_format_policy(p) for p in all_policies]
-            count = len(all_policies)
-            print(f"[LTTM:Organizations] Returning {count} policies for target {target_id}", flush=True)
-            emit_status(f"Organizations query complete — {count} policies", source="organizations_tool")
-            return "\n\n".join(formatted)
-
-        elif action == "describe_policy":
-            if not policy_id:
-                return "Error: policy_id is required for describe_policy."
-            response = client.describe_policy(PolicyId=policy_id)
-            policy_summary = response.get("Policy", {}).get("PolicySummary", {})
-            content = response.get("Policy", {}).get("Content", "")
-            policy_data = {**policy_summary, "Content": content}
-            result = _format_policy(policy_data, include_content=True)
-            print(f"[LTTM:Organizations] Returning policy details for {policy_id}", flush=True)
-            emit_status("Organizations query complete", source="organizations_tool")
-            return result
-
-        else:
-            return (f"Error: Unknown action '{action}'. Valid actions: describe_organization, "
-                    f"list_accounts, list_ous_for_parent, describe_ou, list_accounts_for_parent, "
-                    f"list_policies, list_policies_for_target, describe_policy.")
-
-    except ClientError as e:
-        error_code = e.response["Error"]["Code"]
-        error_msg = e.response["Error"]["Message"]
-
-        if error_code == "AccessDeniedException":
-            msg = ("Error: AccessDenied: Insufficient permissions to query Organizations. "
-                   "Ensure the execution role has organizations:Describe* and "
-                   "organizations:List* permissions on lttm-agent-role.")
-        elif error_code == "AWSOrganizationsNotInUseException":
-            msg = ("Error: AWSOrganizationsNotInUse: This account is not part of an AWS Organization. "
-                   "AWS Organizations must be enabled to use this agent.")
-        elif error_code in ("TargetNotFoundException", "ParentNotFoundException",
-                            "OrganizationalUnitNotFoundException"):
-            msg = f"Error: {error_code}: {error_msg}"
-        elif error_code == "PolicyNotFoundException":
-            msg = f"Error: PolicyNotFound: {error_msg}"
-        else:
-            msg = f"Error: {error_code}: {error_msg}"
-
-        print(f"[LTTM:Organizations] {msg}", flush=True)
-        return msg
-
+        raw_text = _extract_raw_result(organizations_agent)
+        vars.extract_token_usage(result, "organizations")
+        if raw_text:
+            return raw_text
+        return str(result)
     except Exception as e:
-        error_type = type(e).__name__
-        msg = f"Error: {error_type}: {str(e)}"
-        print(f"[LTTM:Organizations] {msg}", flush=True)
-        return msg
+        return f"ERROR querying Organizations: {str(e)}"
