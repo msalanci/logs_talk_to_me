@@ -67,7 +67,7 @@ TABLES = {
     "lttm_logs.config_logs": ["account_id", "year", "month", "day"],
     "lttm_logs.config_snapshot": ["account_id", "year", "month", "day"],
     "lttm_logs.cur_data": ["billing_period"],
-    "lttm_logs.flowlogs": ["account_id", "year", "month", "day"],
+    "lttm_logs.flowlogs": ["aws_account_id", "aws_region", "year", "month", "day"],
     "lttm_logs.guardduty_findings": ["account_id", "year", "month", "day"],
 }
 
