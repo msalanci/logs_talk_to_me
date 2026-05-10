@@ -1,3 +1,6 @@
+// Copyright (c) 2026 Michal Salanci
+// SPDX-License-Identifier: MIT
+
 /**
  * Returns a static JSON array of the 10 available LTTM sub-agents with their names, descriptions, and keyword triggers
  *

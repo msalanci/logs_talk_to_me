@@ -1,3 +1,6 @@
+# Copyright (c) 2026 Michal Salanci
+# SPDX-License-Identifier: MIT
+
 """
 Transforms AWS Config snapshot files into the LTTM data lake format.
 

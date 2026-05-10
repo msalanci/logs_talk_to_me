@@ -1,3 +1,6 @@
+// Copyright (c) 2026 Michal Salanci
+// SPDX-License-Identifier: MIT
+
 /**
  * Deletes a single conversation metadata row from the DynamoDB conversations table by session_id. 
  * Returns 200 on success, 404 if the session_id does not exist.

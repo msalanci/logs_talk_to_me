@@ -1,3 +1,6 @@
+// Copyright (c) 2026 Michal Salanci
+// SPDX-License-Identifier: MIT
+
 /**
  * Lambda streaming shim between API Gateway REST API and AgentCore Runtime.
  *

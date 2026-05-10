@@ -1,3 +1,6 @@
+// Copyright (c) 2026 Michal Salanci
+// SPDX-License-Identifier: MIT
+
 /**
 * Calls GetAgentRuntime on the AgentCore control plane API to check if the LTTM supervisor runtime is active
 * Returns a JSON status object with 200 if READY or ACTIVE, 503 otherwise

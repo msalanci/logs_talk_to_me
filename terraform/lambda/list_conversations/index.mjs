@@ -1,3 +1,6 @@
+// Copyright (c) 2026 Michal Salanci
+// SPDX-License-Identifier: MIT
+
 /**
  * Returns a JSON array of conversation metadata from the DynamoDB conversations table, sorted by last_active descending (most recent first)
  *

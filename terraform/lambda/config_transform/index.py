@@ -1,3 +1,6 @@
+# Copyright (c) 2026 Michal Salanci
+# SPDX-License-Identifier: MIT
+
 """
 Transformation for AWS Config EventBridge events.
 
