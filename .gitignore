@@ -1,9 +1,6 @@
 # Copyright (c) 2026 Michal Salanci
 # SPDX-License-Identifier: MIT
 
-# Personal notes (not part of the project)
-notes.txt
-
 # macOS system files
 .DS_Store
 
@@ -30,7 +27,7 @@ __pycache__/
 agents/hooks/retired/
 tests/
 scripts/
-.NOTES.txt
+pytest.ini
 
 # Bedrock files
 .bedrock_agentcore/

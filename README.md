@@ -1,348 +1,552 @@
 <!-- Copyright (c) 2026 Michal Salanci -->
 <!-- SPDX-License-Identifier: MIT -->
 
+# Logs Talk To Me
 
+**Logs Talk To Me** (**LTTM**) is a conversational interface for AWS infrastructure investigations.
 
+Instead of writing Athena SQL, clicking through multiple AWS consoles, or stitching together `aws cli` commands across accounts, you ask a question in plain English and the system gathers evidence from logs, APIs, and security services.
 
-
-1. declare variables into terraform-bootstrap/terraform.tfvars
-2. create backed bucket, by running terraform-bootstrap
-3. run terraform-bootstrap
-4. declare variables into terraform/terraform.tfvars
-4a. If there are no DNS zones, projet will still run
-5. optionally put defaults into terraform/variables.tf
-6. manually hardcode backend bucket name into terraform/backend.tf
-   
-
-
-
-
-
-# Logs talk to me
-This is the bot you can chat with, about logs.
-
-Analyzing CloudTrail logs can be complex, but what if you could simply ask, **_Tell me about the last 10 unsuccessful login attempts_**.  
-This project provides a conversational interface for analyzing **CloudTrail** logs using **Amazon Bedrock's LLM (Antropic Claude Sonnet 3.7)**, **Amazon Lex** for intent, **AWS Lambda** to connect it all and query the logs from **CloudTrail lake**.
-
-It currently supports only CloudTrail logs related **_user management_**. For more broader version, please check LTTMv2.
-
-### Prerequisites & good to knows
-1. You have to have your account(s) in **AWS Organizations**, with **Control Tower**. That's because it creates **Baseline Trail** and **S3 bucket** where all account(s) can send the CloudTrail logs
-
-2a. For versions v1 and v2 - everything (except for creating the AWS Organization with Control Tower) is in CloudFormation template in folder `/codes`
-
-2b. For version 3 - the whole infrastructure is deployed with terraform, from folder `/terraform`
-
-1. Depending on the version, the code in this repo creates or not creates the **CloudTrail Lake (Event Data Store)** to gather all the logs
-- v1 and v2 require it, as it uses **SQL querries** to retrieve logs.
-- v3 does not need it at all, as it uses S3 DataLake
-
-2. Make some logs :) Please understand that in CloudTrail Lake you will see only logs that were created **after** the lake was deployed.
-
-3. Having AWS CLI and User in the AWS account is recommended.  
-
-
-Currently there are 3 versions available to download and work with.
-v1 - using Amazon Lex, single AWS Lambda function and Amazon Bedrock on 1 ivocation
-v2 - using AWS API Gateway, 3 AWS Lambda functions and Amazon Bedrock on 3 separate invocations 
-v3 - reading multiple datasources and using AI agents
-
-
-## V1 - Lex, Lambda, Bedrock
-### Introduction to v1
-
-LTTMv1 was moved to sepparate branch https://github.com/msalanci/logs_talk_to_me/tree/v1
-
-This version is using **Amazon Lex** to: 
-- Get the intent of the user's question
-- Get the summary response from Lambda function and forwards it back to the user.
-
-It also uses **AWS Lambda function** to: 
-- Create SQL query
-- Query the CloudTrail Event Data Store
-- Send query output to Bedrock model for summary
-- Wait for Bedrock response and forward it to Lex
-
-
-### Architectural overview and description of v1
-
-<img width="735" alt="Screenshot 2025-06-09 at 13 20 03" src="https://github.com/user-attachments/assets/d390c2f1-a4b6-425e-bd88-a05df5b42243" />
-
-1. User creates a question, which is sent to **Amazon Lex**.
-
-2. **Amazon Lex** takes the user input, understands the user intentions and prepares it for processing by **AWS Lambda**.
-
-3. **AWS Lambda** receives the user input from **Amazon Lex**  with the idea of user intention.  
-Based on the intent, **AWS Lambda** queries **cloudtrail lake** and receive the query response, creates the prompt and send it to **Amazon Bedrock**.
-
-4. **Amazon Bedrock** then routes the prompt to the **Antropic Claude 3.7 Sonnet** foundation model.
-
-5. Foundation Model process it, creates an output and sends it back to **Amazon Bedrock**, which returns it back to the **AWS Lambda**.
-
-6. **AWS Lambda** builds the **Amazon Lex** response, send it to **Amazon Lex**, which then returns the output to the user and this is how it works in general.  
-
-For invoking **Amazon Lex**, user can use various methods, such as:
-- **Directly in AWS Console**
-- **Create a web frontend**
-- **Use a script**
-
-This version is using a `bash` script called `alexandra.sh`, to invoke the **Amazon Lex**.
-
-When deploying CloudFormation template, check for parameters and add everything it needs:
-- To `1-iam.yaml` - nothing to add.
-
-- To `2-cloudtrail-lake.yaml` - nothing to add.
-
-- To `3-lambda.yaml` - add Bedrock Model ID. This code works with Anthropic Claude 3.7 and it's a default option in Cloud Formation parameters.
-
-- To `4-lex.yaml` - add AWS account IDs you are using (make sure to have AWS Organizations and Control Tower).
-This project is using 3 accounts, but if you have more or less, please update  
-**Parameters (lines 5-21)**:
-```yaml
-Parameters:
-  # Use as many account IDs as you have. Read the readme.md of you have more or less then 3
-  AccountId1:
-    Description: Account ID 1
-    Type: String
-
-  AccountId2:
-    Description: Account ID 2
-    Type: String
-
-  AccountId3:
-    Description: Account ID 3
-    Type: String
-
-  # AccountIdn:
-  #   Description: Account ID 3
-  #   Type: String
-```
-
-and **AccountIdSlotType (lines 66-77)**:
-```yaml
-- Name: AccountIdSlotType
-   SlotTypeValues:
-      - SampleValue:
-         Value: !Sub "${AccountId1}"
-      - SampleValue:
-         Value: !Sub "${AccountId2}"
-      - SampleValue:
-         Value: !Sub "${AccountId3}"
-      # - SampleValue:
-      #     Value: !Sub "${AccountIdn}"
-   ValueSelectionSetting:
-      ResolutionStrategy: ORIGINAL_VALUE
-```
-
-- To `alexandra.sh`, add **Lex Bot ID** and **Lex Alias ID** - It's outputed in `4-lex.yaml`, just for this purpose. You have to manually copy them into `alexandra.sh`.
-
-
-### Deployment
-I suggest to deploy templates in right order:
-`1-iam.yaml`
-`2-cloudtrail-lake.yaml`
-`3-lambda.yaml`
-`4-lex.yaml`
-So far, templates must be deployed manually.
-
-### Usage example
-From your terminal call `alexandra.sh` and state your question:
-
-```
-./alexandra.sh "last 3 user names to account 123456789012"
-```
-
-The answer will follow:
-
-```
-Alexandra asking Lex: last 3 user names to account 123456789012
-# Users in Account Summary
-
-1. User: HIDDEN_DUE_TO_SECURITY_REASONS
-   - Source IP: 65.10.8.46
-   - Login Status: SUCCESSFUL
-
-2. User: JohnDOE
-   - ARN: arn:aws:iam::123456789012:user/JohnDOE
-   - Source IP: 65.10.8.46
-   - Login Status: SUCCESSFUL
-
-3. User: AccountAdmin
-   - ARN: arn:aws:iam::123456789012:user/AccountAdmin
-   - Source IP: 158.23.57.101
-   - Login Status: SUCCESSFUL
-```
-
-### V1 Limitations
-This version can only work with **limited amount of intents**, so only questions regarding **user management** are valid.
-For more robust version, please proceed to **v2**.
-
-## V2 - API GW, Lambdas, Bedrock
-LTTMv2 staus currently in branch **master** https://github.com/msalanci/logs_talk_to_me/tree/master
-
----
-
-### Introduction to v2
-
-LTTMv1 was moved to sepparate branch https://github.com/msalanci/logs_talk_to_me/tree/v2
-
-This is more robust version than v1.
-The main differences against v1 are:
-- **Intent**, **SQL query** and **summarization** arw being done by sepparate AWS lambda functions.
-- **No Amazon Lex** is used - for Intent we are now using Amazon Bedrock model
-
-### Architectural overview and description of v2
-
-<img width="838" alt="Screenshot 2025-06-30 at 16 34 59" src="https://github.com/user-attachments/assets/4b28a8cd-fa98-444e-9174-8edfca920022" />
-
-LTTMv2 uses API GW, 3 Lambda functions, each invoking Amazon Bedrock sepparately.
-
-AWS Lambda function `lttm-v2-lambda-intent`:
-- Is invoked by **API Gateway**.
-- Reads the the user's question (input) and parsing it to appropriate format.
-- Injects the input into a promt and send to **Amazon Bedrock model** to get the intent.
-- Receives the intent from **Amazon Bedrock model** and sends it to AWS Lambda Function `lttm-v2-lambda-query`.
-- Sends the final summary forwarded from AWS Lambda function `lttm-v2-lambda-query` back to **API Gateway**.
-
-AWS Lambda function `lttm-v2-lambda-query`:
-- Is invoked by **AWS Lambda function** `lttm-v2-lambda-intent`.
-- Receives the original user input and intent from AWS Lambda function `lttm-v2-lambda-intent`.
-- Parses all the data to appropriate format, injects into a prompt and sends to **Amazon Bedrock model** to determine the SQL query.
-- Receives the SQL query created by **Amazon Bedrock model** and queries **CloudTrail Data Event Store**.
-- Receives the SQL query output and sends it to AWS Lambda function `lttm-v2-lambda-summarizer`.
-- Receives the final summarization from AWS Lambda function `lttm-v2-lambda-summarizer` and forwarding it to `lttm-v2-lambda-intent`.
-
-AWS Lambda function `lttm-v2-lambda-summarizer`:
-- Is invoked by AWS Lambda function `lttm-v2-lambda-query`.
-- Receives original user's input and query output from AWS Lambda function `lttm-v2-lambda-query`.
-- Determines the user's style (standard, funny, kids), injects all the data into prompt and sends to **Amazon Bedrock model** to explain the SQL query output.
-- Receives the **Amazon Bedrock model** output and forwards it to AWS Lambda function `lttm-v2-lambda-query`, which then forwards it to AWS Lambda function `lttm-v2-lambda-intent`, which then forwards it to AWS API Gateway, from where it gets to the user.
-
-### Folder and file structure
-Files and folders are structured as follows:
-
-```
-├── infrastructure
-│   ├── 1-artifacts-bucket.yaml
-│   ├── 2-iam.yaml
-│   ├── 3-cloudtrail-lake.yaml
-│   ├── 4-layer-utils.yaml
-│   ├── 5-lambda-summarizer.yaml
-│   ├── 6-lambda-query.yaml
-│   ├── 7-lambda-intent.yaml
-│   └── 8-api-gw.yaml
-├── lambdas
-│   ├── lttm_intent
-│   │   └── lambda_function.py
-│   ├── lttm_query
-│   │   └── lambda_function.py
-│   └── lttm_summarizer
-│       └── lambda_function.py
-├── lttm_utils
-│   ├── prompt_intent.py
-│   ├── prompt_query.py
-│   ├── prompt_summarizer.py
-│   └── utils.py
-└── scripts
-    ├── alexandra.sh
-    └── deploy_cf.sh
-```
-
-##### Folders
-`infrastructure/` contains AWS CloudFormation templates.  
-
-`lambdas/` contains lambda functions codes.  
-
-`lttm_utils/` contains lambda layers and helper functions.  
-
-`scripts/` contains scripts to deploy or run the project.  
-
-
-##### Files
-`infrastructure/1-artifacts-bucket.yaml` - CloudFormation template to create S3 bucket for all artifacts, such as lambda function codes.  
-`infrastructure/2-iam.yaml` - CloudFormation template for all IAM roles needed in this project.  
-`infrastructure/3-cloudtrail-lake.yaml` - CloudFormation template to create CloudTrail Event Data Store.  
-`infrastructure/4-layer-utils.yaml` - CloudFormation template to create Lambda Layer.  
-`infrastructure/5-lambda-summarizer.yaml` - CloudFormation template to create lttm-v2-lambda-summarizer function.  
-`infrastructure/6-lambda-query.yaml` - CloudFormation template to create lttm-v2-lambda-query function.  
-`infrastructure/7-lambda-intent.yaml` - CloudFormation template to create lttm-v2-lambda-intent function.  
-`infrastructure/8-api-gw.yaml` - CloudFormation template to create API Gateway.  
-
-`lambdas/lttm_intent/lambda_function.py` - Python 3.12 code for lttm-v2-lambda-intent function, being stored in S3 bucket for artifacts.  
-`lambdas/lttm_query/lambda_function.py` - Python 3.12 code for lttm-v2-lambda-query function, being stored in S3 bucket for artifacts.  
-`lambdas/lttm_summarizer/lambda_function.py` - Python 3.12 code for lttm-v2-lambda-summarize function, being stored in S3 bucket for artifacts.  
-
-`lttm_utils/prompt_intent.py` - Helper module to create Bedrock prompt for lttm-v2-lambda-intent function.  
-`lttm_utils/prompt_query.py` - Helper module to create Bedrock prompt for lttm-v2-lambda-query function.  
-`lttm_utils/prompt_summarizer.py` - Helper module to create Bedrock prompt for lttm-v2-lambda-summarizer function.  
-`lttm_utils/utils.py` - Reusable content for all lambnda functions.  
-
-`scripts/alexandra.sh` - Bash script for users to ask the questions.  
-`scripts/deploy_cf.sh` - Bash script to deploy CloudFormation template.   
-
-
-### Deployment
-Deployment is being done by CloudFormation, with `deploy_cf.sh` script, directly from CLI.  
-If you don't have the AWS CLI and IAM User in the AWS account, you can deploy it manually
-
-
-### Usage example
-0. **Prerequisites**
-- Make sure to have AWS Organizations with AWS Control Tower
-
-1. **Initial deployment**
-- Use script `deploy_cf.sh` to deploy CloudFormation template
-- Run it from the root folder of the project
-- Follow this principle and order:
-
-Deploy S3 bucket for artifacts:
 ```bash
-./scripts/deploy_cf.sh s3
+./alexandra.sh "show me the last 20 failed console logins across all accounts this week"
+./alexandra.sh "what changed on security group sg-0a1b2c3d yesterday and who changed it?"
+./alexandra.sh "how much did Bedrock cost in February and who ran the expensive queries?"
+./alexandra.sh "any GuardDuty findings in prod that involve publicly accessible resources?"
 ```
 
-Deploy IAM roles:
+This is the **v3** release: a full rewrite using **Amazon Bedrock AgentCore**, **Strands Agents**, **Amazon Athena**, **AWS Glue Data Catalog**, **Amazon S3**, **API Gateway**, **Cognito**, and a multi-account AWS log data lake.
+
+> Earlier versions (`v1` using Amazon Lex and a single Lambda, `v2` using API Gateway with three Lambdas) live on older branches of the original repository and are documented there. This version uses a supervisor/sub-agent architecture running in Bedrock AgentCore Runtime.
+
+## Contents
+
+- [What LTTM can answer](#what-lttm-can-answer)
+- [Architecture overview](#architecture-overview)
+- [Why multiple agents?](#why-multiple-agents)
+- [Safety and anti-hallucination layers](#safety-and-anti-hallucination-layers)
+- [Memory](#memory)
+- [Streaming CLI](#streaming-cli)
+- [CLI flags](#cli-flags)
+- [Repository layout](#repository-layout)
+- [Important files](#important-files)
+- [Prerequisites](#prerequisites)
+- [Configuration checklist](#configuration-checklist)
+- [Deployment order](#deployment-order)
+- [Glue tables](#glue-tables)
+- [Development notes](#development-notes)
+- [Known limitations](#known-limitations)
+- [License](#license)
+
+## What LTTM can answer
+
+LTTM has one **supervisor agent** (Claude Sonnet 4) and twelve specialized sub-agents. The supervisor decides which sub-agent, or combination of sub-agents, is needed for each question.
+
+| Domain          | Data source              | Good for                                                     |
+| --------------- | ------------------------ | ------------------------------------------------------------ |
+| CloudTrail      | Athena over S3 data lake | Who did what, API calls, IAM activity, failed console logins |
+| CloudWatch      | Athena over S3 data lake | Lambda/application logs, log group errors, runtime messages  |
+| Config          | Athena over S3 data lake | Resource changes, current inventory, configuration history   |
+| CUR             | Athena over S3 data lake | Cost, spend trends, expensive services/resources             |
+| VPC Flow Logs   | Athena over S3 data lake | Network traffic, rejected packets, source/destination IPs    |
+| GuardDuty       | API + Athena archive     | Current and historical threat findings                       |
+| Macie           | API                      | Sensitive data findings in S3 (PII, credentials)             |
+| Inspector       | API                      | Vulnerabilities, CVEs, EC2/Lambda/ECR findings               |
+| Access Analyzer | API                      | Public or cross-account access findings                      |
+| Health          | API                      | AWS Health events, outages, scheduled maintenance            |
+| Organizations   | API                      | AWS accounts, OUs, SCPs, org structure                       |
+| Service Quotas  | API                      | Service limits and quota values                              |
+
+The supervisor can call multiple sub-agents for one question. For example:
+
+```text
+Who created the most expensive resources last month?
+```
+
+uses:
+
+```text
+CUR        → find expensive services/resources
+CloudTrail → find who created or modified them
+```
+
+## Architecture overview
+
+```text
+User / alexandra.sh
+        ↓ Cognito JWT
+API Gateway REST API
+        ↓
+Node.js streaming Lambda
+        ↓ SigV4 InvokeAgentRuntime
+Amazon Bedrock AgentCore Runtime
+        ↓
+Supervisor Agent
+        ↓
+Sub-agents
+        ↓
+Athena / AWS APIs / AgentCore Memory
+```
+
+There are two main data paths.
+
+### 1. Historical log data path
+
+Historical data is stored in an S3 data lake and queried with Athena.
+
+```text
+AWS services / accounts
+        ↓
+CloudTrail / Firehose / EventBridge / direct S3 delivery
+        ↓
+S3 data lake (eu-central-1)
+        ↓
+AWS Glue Data Catalog tables
+        ↓
+Amazon Athena
+        ↓
+Athena-based sub-agents
+```
+
+Athena-based sub-agents:
+
+```text
+CloudTrail, CloudWatch, Config, CUR, Flow Logs, GuardDuty archive
+```
+
+### 2. Current-state API path
+
+For services where current state matters more than long-term history, agents call AWS APIs directly. Cross-account reads use STS `AssumeRole` into a dedicated `LTTM<Service>ReadRole` in dev and prod.
+
+```text
+Sub-agent
+        ↓ boto3 API wrapper
+AWS API (+ optional STS AssumeRole for non-main accounts)
+        ↓
+Formatted raw result
+        ↓
+Supervisor summary
+```
+
+API-based sub-agents:
+
+```text
+Access Analyzer, Health, Organizations, Quotas, Macie, Inspector, GuardDuty current findings
+```
+
+## Why multiple agents?
+
+This project uses a **sub-agent-as-tool** pattern.
+
+The supervisor agent does not contain every schema, every API reference, and every service rule in one giant prompt. Instead, each sub-agent owns one domain.
+
+```text
+Supervisor
+├── query_cloudtrail
+├── query_cloudwatch
+├── query_config
+├── query_cur
+├── query_flowlogs
+├── query_guardduty
+├── query_macie
+├── query_inspector
+├── query_access_analyzer
+├── query_health
+├── query_organizations
+└── query_quotas
+```
+
+Benefits:
+
+- smaller prompts per agent
+- easier debugging
+- easier service expansion
+- better SQL/tool quality
+- different models can be used per agent if needed
+- supervisor can combine multiple sources into one answer
+
+## Safety and anti-hallucination layers
+
+LTTM does not rely on a system prompt alone. The runtime uses multiple guardrails and checks.
+
+| Layer                       | Purpose                                                               |
+| --------------------------- | --------------------------------------------------------------------- |
+| Cognito + API Gateway       | Authenticated public entry point                                      |
+| IAM roles                   | Least-privilege backend access                                        |
+| Lake Formation              | Table-level access to Athena data                                     |
+| Bedrock managed guardrail   | Prompt-attack filter + "off-topic" topic denial                       |
+| `ArchitectureGuardHook`     | Blocks architecture probing and internal-name leakage                 |
+| `SQLValidatorHook`          | Blocks unsafe/malformed Athena SQL before execution                   |
+| `SQLRewriteHook`            | Enforces row limits and prevents retry loops                          |
+| `OutputIntegrityHook`       | Detects "no results" contradictions and follow-up detours             |
+| `SupervisorSteeringHandler` | Claude Haiku as judge for routing and final-answer integrity          |
+| Raw result extraction       | Sub-agents return raw tool results; supervisor is the only summarizer |
+
+The key idea:
+
+> Agents may generate text, but deterministic checks decide what can execute.
+
+## Memory
+
+LTTM uses **AgentCore Memory** so follow-up questions can use previous context.
+
+Configured strategies:
+
+| Strategy      | Meaning                                             |
+| ------------- | --------------------------------------------------- |
+| Semantic      | Reusable facts across sessions                      |
+| Summarization | Compressed session history                          |
+| Episodic      | Lessons/reflections from previous query experiences |
+
+A custom `LTTMMemoryHook` writes messages to AgentCore Memory and retrieves relevant memory before the supervisor answers.
+
+Memory is intentionally treated as **context**, not authority. It should help with follow-up questions, but it should not silently modify SQL filters or routing decisions.
+
+Use `--clean` to skip memory retrieval for one request:
+
 ```bash
-./scripts/deploy_cf.sh iam
+./alexandra.sh --clean "show me CloudTrail events today"
 ```
 
-Deploy CloudTrail Event Data Store:
+## Streaming CLI
+
+The CLI client is `alexandra.sh`, which ships in this repository.
+
+It:
+
+- authenticates against Cognito
+- caches and refreshes the ID token
+- manages conversation/session IDs
+- sends questions to API Gateway
+- reads Server-Sent Events from the streaming API
+- prints live status while the agent works
+
+Example output:
+
+```text
+💬 Alexandra (stream) [session: 7d44200c] asking AgentCore: show me last 3 CloudTrail events today
+⏳ Analyzing question...
+⏳ CloudTrail agent processing...
+⏳ Querying Athena...
+⏳ CloudTrail agent returning results to supervisor.
+⏳ Summarizing results...
+
+<final answer>
+```
+
+Optional waiting-screen arcade game (`lttm_game.py`) while the agent works:
+
 ```bash
-./scripts/deploy_cf.sh lake
+./alexandra.sh --notboring "show me CloudWatch errors from the last hour"
 ```
 
-Deploy Lambda layers:
+## CLI flags
+
+| Flag             | What it does                                         |
+| ---------------- | ---------------------------------------------------- |
+| `--new`          | Starts a new session/investigation                   |
+| `--session <id>` | Continues a specific session                         |
+| `--clean`        | Skips AgentCore Memory retrieval for this request    |
+| `--history`      | Lists stored conversation metadata from DynamoDB     |
+| `--delete <id>`  | Deletes conversation metadata for a session          |
+| `--health`       | Checks AgentCore runtime health                      |
+| `--services`     | Lists supported service domains                      |
+| `--notboring`    | Runs the arcade waiting screen while the agent works |
+
+Use `--new` for a new investigation. Do not use it for every follow-up question — otherwise session-level summary and episodic memory have very little context to work with.
+
+## Repository layout
+
+```text
+.
+├── agents/                     # Supervisor + 12 sub-agents deployed to AgentCore
+│   ├── supervisor_agent.py
+│   ├── *_agent.py              # Twelve sub-agent wrappers
+│   ├── hooks/                  # Deterministic safety hooks
+│   ├── plugins/                # Strands plugins (logging + LLM judge)
+│   ├── tools/                  # Athena executor + API boto3 wrappers
+│   ├── utils/                  # Shared helpers (agent_vars, sse_emitter, …)
+│   └── requirements.txt
+│
+├── terraform-bootstrap/        # One-time remote-state S3 bucket
+│
+├── terraform/                  # Main infrastructure
+│   ├── agents.tf               # Agent IAM role + AgentCore Memory strategies
+│   ├── apigw.tf                # REST API and Cognito authorizer
+│   ├── athena.tf               # Athena workgroup + seven Glue tables
+│   ├── cognito.tf              # User pool, app client, initial user
+│   ├── lambda.tf               # Five Lambdas behind the API
+│   ├── lakeformation.tf        # Lake Formation grants for the agent role
+│   ├── s3.tf                   # Data lake bucket and policy
+│   ├── config_pipeline.tf      # Config → EventBridge → Firehose → S3
+│   ├── config_snapshot.tf      # S3-triggered snapshot transformer
+│   ├── config_multiregion.tf   # Multi-region Config recorders
+│   ├── cloudwatch.tf           # CloudWatch → Firehose pipelines
+│   ├── cloudtrail.tf           # Organization trail
+│   ├── cur.tf                  # CUR 2.0 export
+│   ├── flowlogs.tf             # VPC Flow Logs (Parquet, direct to S3)
+│   ├── dns.tf                  # Route 53 DNS query logging
+│   ├── guardduty.tf            # Org-wide GuardDuty + EventBridge archive
+│   ├── inspector.tf            # Inspector v2 enablement
+│   ├── macie.tf                # Macie enablement + auto discovery
+│   ├── guardrails.tf           # Bedrock managed guardrail
+│   ├── dynamodb.tf             # Conversations metadata table
+│   └── lambda/                 # Lambda source directories (zips built by Terraform)
+│
+├── alexandra.sh                # CLI client
+├── lttm_game.py                # Optional waiting-screen arcade game
+├── README.md                   # This file
+└── LICENSE                     # MIT
+```
+
+## Important files
+
+For the full per-file description (what each module does and what it connects to), see [`docs/FILE_REFERENCE.md`](./docs/FILE_REFERENCE.md).
+
+Quick map of the most important files:
+
+| File                         | Purpose                                                      |
+| ---------------------------- | ------------------------------------------------------------ |
+| `agents/supervisor_agent.py` | AgentCore entrypoint; routes questions and streams events    |
+| `agents/*_agent.py`          | Twelve sub-agent wrappers exposed to the supervisor as tools |
+| `agents/tools/*_tool.py`     | Shared Athena executor + six API boto3 wrappers              |
+| `agents/hooks/*.py`          | Deterministic guardrails and AgentCore Memory hook           |
+| `agents/plugins/*.py`        | Logging plugin and Claude Haiku LLM-judge steering plugin    |
+| `agents/utils/agent_vars.py` | Account IDs, model IDs, Glue partition rules, internal names |
+| `terraform/athena.tf`        | Athena workgroup + Glue database and tables                  |
+| `terraform/agents.tf`        | Agent IAM role + AgentCore Memory + memory strategies        |
+| `terraform/apigw.tf`         | REST API (five Cognito-authorized routes)                    |
+| `terraform/lambda.tf`        | Five Lambdas behind the API Gateway                          |
+| `terraform/cognito.tf`       | User pool, app client, initial admin user                    |
+| `terraform/dynamodb.tf`      | Conversations metadata table with TTL                        |
+| `alexandra.sh`               | Bash CLI (Cognito auth + SSE stream)                         |
+
+## Prerequisites
+
+You need:
+
+- three AWS accounts in one AWS Organization (the original setup used main, dev, prod accounts managed through Control Tower; Control Tower itself is not a hard code dependency)
+- AWS CLI profiles for all three accounts
+- Terraform `>= 1.14`
+- AWS provider `~> 6.43`
+- Python 3.12 for local scripts and AgentCore runtime packaging
+- AWS CLI v2
+- Bedrock AgentCore CLI/tooling installed locally
+- access to the Bedrock models configured in `agents/utils/agent_vars.py` (Claude Sonnet 4 and Claude Haiku 4.5 by default, via inference profile in us-west-2)
+- Business or Enterprise Support if you want the AWS Health agent to return account-specific Health data
+
+The project was originally built across three regions:
+
+```text
+eu-central-1  → main infrastructure, Lambda, API Gateway, data lake
+us-west-2     → Bedrock AgentCore Runtime and Bedrock models
+us-east-1     → global-service resources (Route 53 query logging, CUR export)
+```
+
+You can change regions in `terraform/terraform.tfvars` and `agents/utils/agent_vars.py`, but make sure every hardcoded service dependency is updated consistently.
+
+## Configuration checklist
+
+Before deploying, edit these files.
+
+### 1. `terraform-bootstrap/terraform.tfvars`
+
+Set the state bucket name, region, and CLI profile used to create it.
+
+```hcl
+backend_bucket         = "your-unique-tf-state-bucket"
+backend_region         = "eu-central-1"
+backend_region_profile = "main"
+```
+
+Then hardcode the same bucket name into `terraform/backend.tf`.
+
+### 2. `terraform/terraform.tfvars`
+
+```hcl
+project_name = "lttm-cia"
+
+main_account_id = "123456789012"
+dev_account_id  = "234567890123"
+prod_account_id = "345678901234"
+
+dev_account_email  = "dev@example.com"
+prod_account_email = "prod@example.com"
+
+project_region   = "eu-central-1"
+global_region    = "us-east-1"
+agentcore_region = "us-west-2"
+
+main_profile = "main"
+dev_profile  = "dev"
+prod_profile = "prod"
+
+prefix = "your-unique-datalake-bucket"
+
+hosted_zone_ids = {
+  # "Z0123456789ABCDEF" = "example.com"  # optional DNS query logging
+}
+
+cognito_initial_user          = "admin"
+cognito_initial_email         = "admin@example.com"
+cognito_initial_temp_password = "ChangeMeOnFirstLogin!42"
+```
+
+Leave `cli_runtime_arn` / `cli_stream_runtime_arn` at their placeholder defaults for the **first** `terraform apply`. Fill in the real AgentCore runtime ARN after the agent is deployed, then re-apply.
+
+### 3. `agents/utils/agent_vars.py`
+
+Set the same account IDs, labels, emails, default region, and data lake bucket.
+
+```python
+ACC1_ID = "123456789012"
+ACC1_LABEL = "main"
+ACC1_EMAIL = "main@example.com"
+
+# … ACC2_*, ACC3_* …
+
+DATALAKE_BUCKET = "your-unique-datalake-bucket"
+DEFAULT_REGION = "eu-central-1"
+```
+
+## Deployment order
+
+The order matters because the Lambda permissions need the AgentCore runtime ARN, and AgentCore needs the IAM role and memory created by Terraform.
+
+### 1. Bootstrap Terraform state
+
 ```bash
-./scripts/deploy_cf.sh utils
+cd terraform-bootstrap
+terraform init
+terraform apply
 ```
 
-Deploy Lambda function lttm-v2-lambda-summarizer:
+Then make sure `terraform/backend.tf` points to that bucket.
+
+### 2. Deploy infrastructure with placeholder AgentCore runtime ARN
+
 ```bash
-./scripts/deploy_cf.sh summarizer
+cd ../terraform
+terraform init
+terraform apply
 ```
 
-Deploy Lambda function lttm-v2-lambda-query:
+This creates:
+
+- S3 data lake
+- Glue / Athena / Lake Formation
+- data ingestion pipelines (CloudTrail / CloudWatch / Config / CUR / Flow Logs / GuardDuty / DNS)
+- Cognito
+- API Gateway
+- Lambda functions
+- DynamoDB conversations table
+- Bedrock guardrail
+- AgentCore Memory + strategies
+- AgentCore execution IAM role
+
+### 3. Deploy the agents to AgentCore
+
 ```bash
-./scripts/deploy_cf.sh query
+cd ../agents
+agentcore launch
 ```
 
-Deploy Lambda function lttm-v2-lambda-intent:
+This produces the real AgentCore runtime ARN and the stream runtime ARN.
+
+### 4. Re-apply Terraform with the real runtime ARN
+
+In `terraform/terraform.tfvars`, uncomment and update:
+
+```hcl
+cli_runtime_arn        = "arn:aws:bedrock-agentcore:us-west-2:123456789012:runtime/lttm_supervisor-XXXXXXXXXX"
+cli_stream_runtime_arn = "arn:aws:bedrock-agentcore:us-west-2:123456789012:runtime/lttm_supervisor_stream-XXXXXXXXXX"
+```
+
+Then:
+
 ```bash
-./scripts/deploy_cf.sh intent
+cd ../terraform
+terraform apply
 ```
 
-Deploy API Gateway:
+This tightens Lambda permissions from the placeholder runtime ARN to the real AgentCore runtime ARN.
+
+### 5. Export CLI variables and smoke-test
+
 ```bash
-./scripts/deploy_cf.sh intent
+export LTTM_STREAM_API_URL=$(terraform -chdir=terraform output -raw lttm_stream_api_url)
+export COGNITO_USER_POOL_ID=$(terraform -chdir=terraform output -raw cognito_user_pool_id)
+export COGNITO_CLIENT_ID=$(terraform -chdir=terraform output -raw cognito_app_client_id)
 ```
 
-2. **Run the project**  
-From commandline of root directory, run:
+Then:
+
 ```bash
-./script/alexandra.sh "<your question>"
+./alexandra.sh --health
+./alexandra.sh --services
+./alexandra.sh --new "show me last 3 CloudTrail events today in main"
 ```
 
----
+## Glue tables
 
-### Introduction to v3
+Athena queries these Glue tables in database `lttm_logs`.
 
-LTTMv1 was moved to sepparate branch https://github.com/msalanci/logs_talk_to_me/tree/v3
+| Table                | Partition keys                                         |
+| -------------------- | ------------------------------------------------------ |
+| `cloudtrail_logs`    | `account_id`, `region`, `year`, `month`, `day`         |
+| `cloudwatch_logs`    | `log_group`, `account_id`, `year`, `month`             |
+| `config_logs`        | `account_id`, `year`, `month`, `day`                   |
+| `config_snapshot`    | `account_id`, `year`, `month`, `day`                   |
+| `cur_data`           | `billing_period`                                       |
+| `flowlogs`           | `aws_account_id`, `aws_region`, `year`, `month`, `day` |
+| `guardduty_findings` | `account_id`, `year`, `month`, `day`                   |
+
+If you change table partitioning in `terraform/athena.tf`, also update `agents/utils/agent_vars.py` — `SQLValidatorHook` uses that mapping to validate SQL before Athena runs.
+
+## Development notes
+
+### Lambda zips
+
+Terraform builds Lambda zip files from source directories using `archive_file`. The `.zip` artifacts are excluded from git (`terraform/lambda/*.zip` in `.gitignore`); the source directories are the source of truth.
+
+### Files intentionally excluded from the repo
+
+`.gitignore` excludes developer-local concerns:
+
+```text
+.terraform/
+*.tfstate*
+terraform/lambda/*.zip
+__pycache__/
+.pytest_cache/
+agents/hooks/retired/
+tests/
+scripts/
+.bedrock_agentcore.yaml       # AgentCore CLI writes this per deployment
+.bedrock_agentcore/           # AgentCore CLI state directory
+```
+
+That means a fresh clone gives you a runnable repo without any leftover local state, credentials, or deployment-specific config. The AgentCore CLI deployment flow will generate the deployment-specific AgentCore config for your account.
+
+### Basic checks
+
+```bash
+python3 -m compileall agents
+node --check terraform/lambda/invoke_agent_stream/index.mjs
+node --check terraform/lambda/list_conversations/index.mjs
+node --check terraform/lambda/delete_conversation/index.mjs
+node --check terraform/lambda/health_check/index.mjs
+node --check terraform/lambda/list_services/index.mjs
+```
+
+## Known limitations
+
+- The project assumes a three-account model (main / dev / prod). Adapting to one or two accounts is mostly edits in `terraform/` provider aliases and `agents/utils/agent_vars.py`.
+- Some services are regional and must be enabled in every region you care about.
+- AWS Health account-specific events require Business or Enterprise Support.
+- CloudWatch log queries depend on log-group partition discovery when the user doesn't provide an exact log group.
+- Memory improves follow-up context but should not be treated as authorization or truth.
+- AgentCore Runtime runs in `PUBLIC` network mode in the provided config; private networking would require VPC-mode runtime and VPC endpoints.
+
+## License
+
+MIT. See [`LICENSE`](./LICENSE).
