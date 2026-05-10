@@ -468,6 +468,7 @@ If you change table partitioning in `terraform/athena.tf`, also update `agents/u
 - CloudWatch log queries depend on log-group partition discovery when the user doesn't provide an exact log group.
 - Memory improves follow-up context but should not be treated as authorization or truth.
 - AgentCore Runtime runs in `PUBLIC` network mode in the provided config; private networking would require VPC-mode runtime and VPC endpoints.
+- Long-running streaming queries (>~120s) may be cut off client-side by HTTPS-inspecting antivirus software (ESET, Kaspersky, Avast and similar) that MITMs the SSL connection and enforces a connection-lifetime cap. If `alexandra.sh` ends with `(124s)` and no final answer on complex multi-agent questions while CloudWatch shows the server completed, either add `*.execute-api.<region>.amazonaws.com` to the antivirus SSL/TLS filter exclusion list, disable SSL filtering for testing, or call the agent directly with `agentcore invoke`. A separate issue inside `alexandra.sh`'s own SSE parser pipeline can also cause a ~124s cut on complex queries even with antivirus off — see `PROBLEMS.md` Problem 59 for status.
 
 ## Development notes
 
@@ -586,7 +587,100 @@ agentcore launch --auto-update-on-conflict \
 
 Without this step the guardrail exists in AWS but the supervisor ignores it.
 
-### 6. Export CLI variables and smoke-test
+### 6. Verify `agents/.bedrock_agentcore.yaml` and redeploy if anything is missing
+
+`agentcore launch` writes (or rewrites) `agents/.bedrock_agentcore.yaml` on every run. This file is gitignored — it is deployment-specific and regenerated per account. After the second `agentcore launch` finishes, open the file and confirm it looks like this, with the placeholders replaced by real values from your account:
+
+```yaml
+default_agent: <agentore_name>
+agents:
+  lttm_supervisor_stream:
+    name: lttm_supervisor_stream
+    language: python
+    node_version: '20'
+    entrypoint: supervisor_agent.py
+    deployment_type: direct_code_deploy
+    runtime_type: PYTHON_3_12
+    platform: linux/arm64
+    container_runtime: null
+    source_path: .
+    aws:
+      execution_role: <arn_of_execution_role>
+      execution_role_auto_create: false
+      account: '<agentcore_account>'
+      region: us-west-2
+      ecr_repository: null
+      ecr_auto_create: false
+      s3_path: <s3_path>
+      s3_auto_create: false
+      network_configuration:
+        network_mode: PUBLIC
+        network_mode_config: null
+      protocol_configuration:
+        server_protocol: HTTP
+      observability:
+        enabled: true
+      lifecycle_configuration:
+        idle_runtime_session_timeout: null
+        max_lifetime: null
+    bedrock_agentcore:
+      agent_id: <agentcore_id>
+      agent_arn: <agentcore_arn>
+      agent_session_id: null
+    codebuild:
+      project_name: null
+      execution_role: null
+      source_bucket: null
+    memory:
+      mode: STM_AND_LTM
+      memory_id: <agentcore_memory_id>
+      memory_arn: <agentcore_memory_arn>
+      memory_name: <agentcore_memory_name>
+      event_expiry_days: 7
+      first_invoke_memory_check_done: false
+      was_created_by_toolkit: false
+    identity:
+      credential_providers: []
+      workload: null
+    aws_jwt:
+      enabled: false
+      audiences: []
+      signing_algorithm: ES384
+      issuer_url: null
+      duration_seconds: 300
+    authorizer_configuration: null
+    request_header_configuration: null
+    oauth_configuration: null
+    api_key_env_var_name: null
+    api_key_credential_provider_name: null
+    is_generated_by_agentcore_create: false
+```
+
+Check these fields in particular — they are the ones that silently break LTTM if they are wrong:
+
+| Field                                             | Expected value                                          | Why it matters                                                                                                                                      |
+| ------------------------------------------------- | ------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `aws.observability.enabled`                       | `true`                                                  | Turns on OpenTelemetry traces/logs in CloudWatch. Without this, `/aws/bedrock-agentcore/runtimes/...` log groups stay empty and debugging is blind. |
+| `aws.execution_role`                              | ARN of the role created by `terraform/agents.tf`        | Agent cannot reach Bedrock, Athena, or Memory without the right role.                                                                               |
+| `aws.region`                                      | `us-west-2` (or whatever you set `agentcore_region` to) | Must match `AGENTCORE_REGION` in Lambda and the region of the AgentCore runtime.                                                                    |
+| `aws.network_configuration.network_mode`          | `PUBLIC`                                                | VPC mode is supported but requires extra endpoints; stock config assumes `PUBLIC`.                                                                  |
+| `aws.protocol_configuration.server_protocol`      | `HTTP`                                                  | The streaming Lambda shim talks to the runtime over HTTP.                                                                                           |
+| `memory.mode`                                     | `STM_AND_LTM`                                           | Disabling long-term memory turns off episodic + semantic strategies.                                                                                |
+| `memory.memory_id` / `memory_arn` / `memory_name` | real IDs (not empty or `null`)                          | Empty values silently disable AgentCore Memory — follow-up questions lose context.                                                                  |
+| `bedrock_agentcore.agent_id` / `agent_arn`        | real IDs (not empty or `null`)                          | Missing ARN means Terraform's Lambda permission points at a different runtime.                                                                      |
+
+If any of those fields are empty, `null`, or placeholder strings after `agentcore launch` finished, fill them in manually (IDs come from `terraform output` and from the Bedrock AgentCore console) and run a **third** `agentcore launch` so the corrected config is applied:
+
+```bash
+cd agents
+agentcore launch --auto-update-on-conflict \
+  --env LTTM_GUARDRAIL_ID=$LTTM_GUARDRAIL_ID \
+  --env LTTM_GUARDRAIL_VERSION=$LTTM_GUARDRAIL_VERSION
+```
+
+This third launch is usually only needed if `agentcore configure` was never run or if observability/memory were attached to the runtime after initial creation.
+
+### 7. Export CLI variables and smoke-test
 
 ```bash
 export LTTM_STREAM_API_URL=$(terraform -chdir=terraform output -raw lttm_stream_api_url)
