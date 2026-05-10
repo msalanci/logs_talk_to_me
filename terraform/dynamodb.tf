@@ -6,6 +6,7 @@
 # dynamodb.tf — Enables DynamoDb as conversation metadata store
 # =============================================================================
 
+
 resource "aws_dynamodb_table" "conversations" {
   name                        = "${var.prefix}-conversations"
   billing_mode                = "PAY_PER_REQUEST"

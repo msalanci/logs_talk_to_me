@@ -6,11 +6,11 @@
 # lambda.tf — Lambda functions for LTTM project
 #
 # List of lambda functions:
-    # - lttm-invoke-agent-stream
-    # - lttm-list-conversations
-    # - lttm-delete-conversation
-    # - lttm-health-check
-    # - lttm-list-services
+# - lttm-invoke-agent-stream
+# - lttm-list-conversations
+# - lttm-delete-conversation
+# - lttm-health-check
+# - lttm-list-services
 # =============================================================================
 
 
@@ -79,8 +79,8 @@ data "archive_file" "invoke_agent_stream" {
 }
 
 resource "aws_lambda_function" "invoke_agent_stream" {
-  function_name = "lttm-invoke-agent-stream"
-  role          = aws_iam_role.lambda_stream.arn
+  function_name    = "lttm-invoke-agent-stream"
+  role             = aws_iam_role.lambda_stream.arn
   handler          = "index.handler"
   runtime          = "nodejs20.x"
   timeout          = 300

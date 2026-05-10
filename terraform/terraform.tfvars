@@ -42,8 +42,7 @@ cognito_initial_email         = "example@mydomain.com"
 cognito_initial_temp_password = "<MyP4ssR0rd$%#>"
 
 # AgentCore vars
-memory_retention_days  = 7
-
+memory_retention_days = 7
 # IMPORTANT!
 # Keep this placeholder before deploying afgentcore, otherwise you own't be able to deploy lambda functions
 # Once terraform is deployed with this AND AgentCore is configured and deployes, get agentcore runtime ID and stream runtime ID, place it here instead of placeholders and re-deploy terraform again

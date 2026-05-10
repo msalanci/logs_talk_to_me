@@ -53,7 +53,7 @@ resource "aws_config_delivery_channel" "main_multiregion" {
   region         = each.value
   name           = "default"
   s3_bucket_name = var.prefix
-  depends_on = [aws_config_configuration_recorder.main_multiregion]
+  depends_on     = [aws_config_configuration_recorder.main_multiregion]
 }
 
 resource "aws_config_configuration_recorder_status" "main_multiregion" {
@@ -86,8 +86,8 @@ resource "aws_config_delivery_channel" "dev_multiregion" {
   provider       = aws.dev_eucentral1
   region         = each.value
   name           = "default"
-  s3_bucket_name = var.prefix 
-  depends_on = [aws_config_configuration_recorder.dev_multiregion]
+  s3_bucket_name = var.prefix
+  depends_on     = [aws_config_configuration_recorder.dev_multiregion]
 }
 
 resource "aws_config_configuration_recorder_status" "dev_multiregion" {
@@ -122,7 +122,7 @@ resource "aws_config_delivery_channel" "prod_multiregion" {
   region         = each.value
   name           = "default"
   s3_bucket_name = var.prefix
-  depends_on = [aws_config_configuration_recorder.prod_multiregion]
+  depends_on     = [aws_config_configuration_recorder.prod_multiregion]
 }
 
 resource "aws_config_configuration_recorder_status" "prod_multiregion" {
@@ -149,7 +149,7 @@ resource "aws_config_configuration_recorder" "main_home" {
 resource "aws_config_delivery_channel" "main_home" {
   name           = "default"
   s3_bucket_name = var.prefix
-  depends_on = [aws_config_configuration_recorder.main_home]
+  depends_on     = [aws_config_configuration_recorder.main_home]
 }
 
 resource "aws_config_configuration_recorder_status" "main_home" {

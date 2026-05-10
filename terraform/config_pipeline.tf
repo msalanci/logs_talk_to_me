@@ -51,13 +51,13 @@ resource "aws_kinesis_firehose_delivery_stream" "config_main" {
   destination = "extended_s3"
 
   extended_s3_configuration {
-    role_arn = aws_iam_role.config_firehose_main.arn
-    bucket_arn = "arn:aws:s3:::${var.prefix}"
-    prefix = "config/account_id=!{partitionKeyFromQuery:account_id}/year=!{partitionKeyFromQuery:year}/month=!{partitionKeyFromQuery:month}/day=!{partitionKeyFromQuery:day}/"
+    role_arn            = aws_iam_role.config_firehose_main.arn
+    bucket_arn          = "arn:aws:s3:::${var.prefix}"
+    prefix              = "config/account_id=!{partitionKeyFromQuery:account_id}/year=!{partitionKeyFromQuery:year}/month=!{partitionKeyFromQuery:month}/day=!{partitionKeyFromQuery:day}/"
     error_output_prefix = "config-errors/!{firehose:error-output-type}/year=!{timestamp:yyyy}/month=!{timestamp:MM}/"
-    compression_format = "UNCOMPRESSED"
-    buffering_size     = 64 # MB — minimum required when dynamic partitioning is enabled
-    buffering_interval = 60 # seconds
+    compression_format  = "UNCOMPRESSED"
+    buffering_size      = 64 # MB — minimum required when dynamic partitioning is enabled
+    buffering_interval  = 60 # seconds
 
     dynamic_partitioning_configuration {
       enabled = true
@@ -95,8 +95,8 @@ resource "aws_kinesis_firehose_delivery_stream" "config_dev" {
   destination = "extended_s3"
 
   extended_s3_configuration {
-    role_arn = aws_iam_role.config_firehose_cross_account_dev.arn
-    bucket_arn = "arn:aws:s3:::${var.prefix}"
+    role_arn            = aws_iam_role.config_firehose_cross_account_dev.arn
+    bucket_arn          = "arn:aws:s3:::${var.prefix}"
     prefix              = "config/account_id=!{partitionKeyFromQuery:account_id}/year=!{partitionKeyFromQuery:year}/month=!{partitionKeyFromQuery:month}/day=!{partitionKeyFromQuery:day}/"
     error_output_prefix = "config-errors/!{firehose:error-output-type}/year=!{timestamp:yyyy}/month=!{timestamp:MM}/"
     compression_format  = "UNCOMPRESSED"
@@ -141,8 +141,8 @@ resource "aws_kinesis_firehose_delivery_stream" "config_prod" {
   destination = "extended_s3"
 
   extended_s3_configuration {
-    role_arn = aws_iam_role.config_firehose_cross_account_prod.arn
-    bucket_arn = "arn:aws:s3:::${var.prefix}"
+    role_arn            = aws_iam_role.config_firehose_cross_account_prod.arn
+    bucket_arn          = "arn:aws:s3:::${var.prefix}"
     prefix              = "config/account_id=!{partitionKeyFromQuery:account_id}/year=!{partitionKeyFromQuery:year}/month=!{partitionKeyFromQuery:month}/day=!{partitionKeyFromQuery:day}/"
     error_output_prefix = "config-errors/!{firehose:error-output-type}/year=!{timestamp:yyyy}/month=!{timestamp:MM}/"
     compression_format  = "UNCOMPRESSED"
