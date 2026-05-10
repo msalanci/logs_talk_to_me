@@ -173,6 +173,38 @@ def emit_tokens(message: str, source: str = "supervisor") -> None:
     _push_event(event)
 
 
+def emit_ping(source: str = "supervisor") -> None:
+    """
+    Emit a heartbeat Server-Sent Events (SSE) event to keep the stream alive.
+
+    Why: During the supervisor's final-answer compose phase (after all sub-agents
+    return but before emit_result fires), no SSE events are produced for up to
+    ~90 seconds while the LLM generates the response. Prolonged silence on the
+    HTTP body causes API Gateway / Lambda response streaming / client to drop
+    the connection mid-flight (observed as a ~127s cutoff client-side while the
+    server continues to INVOKE_END ~203s later).
+
+    This emitter yields a minimal event — `{"type": "ping", ...}` — purely so
+    bytes keep flowing through the SSE pipe. alexandra.sh's parser has no
+    `ping` case in its `case "$TYPE" in` block, so unknown types are silently
+    dropped — the user sees nothing, the connection stays alive.
+
+    Called by the supervisor's yield loop on queue.Queue.get() timeout,
+    not by individual hooks or sub-agents.
+
+    Args:
+        source: Component that generated the event (default "supervisor").
+
+    Returns:
+        None. Silently no-ops when SSE is disabled, safe to call unconditionally.
+    """
+    if not _SSE_ENABLED:
+        return
+    step = _next_step()
+    event = {"type": "ping", "step": step, "source": source}
+    _push_event(event)
+
+
 def emit_done() -> None:
     """Push a sentinel None to signal the sync generator entrypoint to stop yielding."""
     if _event_queue is not None:

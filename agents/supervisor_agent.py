@@ -389,13 +389,42 @@ def invoke(payload, context=None):
             t = threading.Thread(target=_run_agent, daemon=True)
             t.start()
 
+        # Yield Server-Sent Events (SSE) event dicts as they arrive from the queue.
+        # AgentCore wraps each yielded dict as "data: {json}\n\n" automatically.
+        # queue.Queue.get(timeout=...) blocks until an item is available.
+        #
+        # Heartbeat: poll with a short timeout. On each empty poll, yield a ping
+        # event so bytes keep flowing through the SSE pipe. Without this, the
+        # supervisor's final-answer compose phase (up to ~90s of silent LLM
+        # generation after all sub-agents return) starves the stream and the
+        # intermediaries (API GW / Lambda response streaming / client) drop the
+        # connection (observed as a ~127s client cutoff while the server
+        # continues to INVOKE_END ~203s later). alexandra.sh's SSE parser has
+        # no `ping` case — it silently drops unknown types — so the user sees
+        # no extra output, only a live connection.
+        from utils.sse_emitter import emit_ping
         q = get_queue()
+        HEARTBEAT_INTERVAL_S = 15
+        HARD_MAX_SILENT_S = 600  # safety cap: absolute max total run time
+        silent_elapsed_s = 0
         while True:
             try:
-                item = q.get(timeout=300)
+                item = q.get(timeout=HEARTBEAT_INTERVAL_S)
             except queue_mod.Empty:
-                print("[LTTM] WARNING: queue.get() timed out after 300s", flush=True)
-                break
+                silent_elapsed_s += HEARTBEAT_INTERVAL_S
+                if silent_elapsed_s >= HARD_MAX_SILENT_S:
+                    print(
+                        f"[LTTM] WARNING: queue.get() silent for {silent_elapsed_s}s "
+                        f"(cap {HARD_MAX_SILENT_S}s) — aborting yield loop",
+                        flush=True,
+                    )
+                    break
+                # Heartbeat to keep the HTTP body flowing.
+                emit_ping(source="supervisor")
+                # emit_ping pushes onto the same queue; next get() will return it.
+                continue
+            # Any real event resets the silent timer.
+            silent_elapsed_s = 0
             if item is None:
                 break
             yield item
