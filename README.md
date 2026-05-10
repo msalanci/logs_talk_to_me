@@ -24,6 +24,7 @@ This is the **v3** release: a full rewrite using **Amazon Bedrock AgentCore**, *
 - [Account model](#account-model)
 - [Architecture overview](#architecture-overview)
 - [Why multiple agents?](#why-multiple-agents)
+- [Models](#models)
 - [Safety and anti-hallucination layers](#safety-and-anti-hallucination-layers)
 - [Memory](#memory)
 - [Streaming CLI](#streaming-cli)
@@ -175,6 +176,17 @@ Benefits:
 - better SQL/tool quality
 - different models can be used per agent if needed
 - supervisor can combine multiple sources into one answer
+
+## Models
+
+LTTM uses two Anthropic models on Amazon Bedrock, via US inference profiles in `us-west-2`:
+
+| Role                                      | Model                | Where it runs                                                                        |
+| ----------------------------------------- | -------------------- | ------------------------------------------------------------------------------------ |
+| Supervisor + 12 sub-agents                | **Claude Sonnet 4**  | Every agent that reasons over user questions and drives tool calls                   |
+| LLM-as-judge (routing + output integrity) | **Claude Haiku 4.5** | `SupervisorSteeringHandler` checkpoints that validate routing and response integrity |
+
+Model IDs live in `agents/utils/agent_vars.py` (`US_SONNET`, `US_HAIKU`). Swap them by editing that file and redeploying the agent. The judge is deliberately on Haiku because each call is short, frequent, and cheap — ~$0.001 per query.
 
 ## Safety and anti-hallucination layers
 
