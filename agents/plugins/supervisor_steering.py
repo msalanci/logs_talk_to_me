@@ -74,6 +74,8 @@ Compare the user's question against the tool being called:
    - Configuration changes/what changed/current state → query_config
    - Application logs/Lambda output/errors in logs → query_cloudwatch
    - External access/publicly accessible → query_access_analyzer
+   - Sensitive data/PII/credentials in S3/data classification → query_macie
+   - Vulnerabilities/CVEs/unpatched packages/Lambda/EC2/ECR vulnerabilities → query_inspector
    - Service health/outages → query_health
    - Org structure/SCPs/accounts → query_organizations
    - Service limits/quotas → query_quotas
