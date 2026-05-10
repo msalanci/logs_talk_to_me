@@ -51,6 +51,8 @@ QUERY_TOOLS = {
     "query_health",
     "query_organizations", 
     "query_quotas",
+    "query_macie",
+    "query_inspector",
 }
 
 # Prompt to check if supervisor is calling right agent (steer_before_tool)

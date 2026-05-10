@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: MIT
 
 /**
- * Returns a static JSON array of the 10 available LTTM sub-agents with their names, descriptions, and keyword triggers
+ * Returns a static JSON array of the 12 available LTTM sub-agents with their names, descriptions, and keyword triggers
  *
  * Connects to:
  *   - aws_api_gateway_rest_api.lttm_stream (apigw.tf) — GET /services
@@ -59,6 +59,16 @@ const SERVICES = [
     name: "guardduty",
     description: "Threat detection, suspicious activity, security findings",
     keywords: ["threat", "suspicious", "attack", "guardduty", "malicious"],
+  },
+  {
+    name: "macie",
+    description: "Sensitive data discovery, PII and credentials in S3 buckets",
+    keywords: ["sensitive data", "pii", "credentials", "s3", "macie", "classification"],
+  },
+  {
+    name: "inspector",
+    description: "Vulnerability findings, CVEs, package and code vulnerabilities",
+    keywords: ["vulnerability", "cve", "inspector", "patch", "cvss", "unpatched"],
   },
 ];
 

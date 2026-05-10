@@ -32,6 +32,8 @@ QUERY_TOOLS = {
     "query_health",
     "query_organizations",
     "query_quotas",
+    "query_macie",
+    "query_inspector",
 }
 
 # H1: Supervisor says "no results" when tool actually returned data
