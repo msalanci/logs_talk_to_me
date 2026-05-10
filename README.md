@@ -21,6 +21,7 @@ This is the **v3** release: a full rewrite using **Amazon Bedrock AgentCore**, *
 ## Contents
 
 - [What LTTM can answer](#what-lttm-can-answer)
+- [Account model](#account-model)
 - [Architecture overview](#architecture-overview)
 - [Why multiple agents?](#why-multiple-agents)
 - [Safety and anti-hallucination layers](#safety-and-anti-hallucination-layers)
@@ -35,6 +36,7 @@ This is the **v3** release: a full rewrite using **Amazon Bedrock AgentCore**, *
 - [Glue tables](#glue-tables)
 - [Development notes](#development-notes)
 - [Known limitations](#known-limitations)
+- [Usage examples](#usage-examples)
 - [License](#license)
 
 ## What LTTM can answer
@@ -68,6 +70,16 @@ uses:
 CUR        → find expensive services/resources
 CloudTrail → find who created or modified them
 ```
+
+## Account model
+
+LTTM runs across **three AWS accounts in one AWS Organization** (main, dev, prod).
+
+- The **main** account holds the data lake, the API Gateway, the Lambdas, Cognito, DynamoDB, and the AgentCore runtime IAM role.
+- **Dev** and **prod** are member accounts. Their CloudTrail events and Firehose-delivered logs land in the main-account data lake; the agents read account-local services (Health, GuardDuty, Macie, Inspector, Access Analyzer, Quotas) by assuming a per-service `LTTM<Service>ReadRole` that Terraform creates in each member account.
+- **Organizations** is queried directly from the management account — no role assumption.
+
+Control Tower was used for the original setup but is not a hard requirement; an AWS Organization with three accounts and the CLI profiles to drive them is enough.
 
 ## Architecture overview
 
@@ -332,7 +344,8 @@ You need:
 - AWS CLI v2
 - Bedrock AgentCore CLI/tooling installed locally
 - access to the Bedrock models configured in `agents/utils/agent_vars.py` (Claude Sonnet 4 and Claude Haiku 4.5 by default, via inference profile in us-west-2)
-- Business or Enterprise Support if you want the AWS Health agent to return account-specific Health data
+
+> **Note on the AWS Health agent:** the AWS Health API only returns account-specific events for accounts on Business or Enterprise Support. Without it, `query_health` still works — it just returns no events. The rest of LTTM is unaffected.
 
 The project was originally built across three regions:
 
@@ -358,7 +371,18 @@ backend_region         = "eu-central-1"
 backend_region_profile = "main"
 ```
 
-Then hardcode the same bucket name into `terraform/backend.tf`.
+Then **open `terraform/backend.tf`** and hardcode the same bucket name there. Terraform's S3 backend block cannot use variables, so this is a manual edit:
+
+```hcl
+terraform {
+  backend "s3" {
+    bucket       = "your-unique-tf-state-bucket"   # ← edit this line
+    key          = "lttm/terraform.tfstate"
+    region       = "eu-central-1"
+    use_lockfile = true
+  }
+}
+```
 
 ### 2. `terraform/terraform.tfvars`
 
@@ -410,7 +434,7 @@ DEFAULT_REGION = "eu-central-1"
 
 ## Deployment order
 
-The order matters because the Lambda permissions need the AgentCore runtime ARN, and AgentCore needs the IAM role and memory created by Terraform.
+The order matters because the Lambda permissions need the AgentCore runtime ARN, and AgentCore needs the IAM role and memory created by Terraform. The guardrail also needs two `agentcore launch` calls — one to create the runtime, and one to reinject the guardrail env vars after Terraform has created the guardrail.
 
 ### 1. Bootstrap Terraform state
 
@@ -420,9 +444,9 @@ terraform init
 terraform apply
 ```
 
-Then make sure `terraform/backend.tf` points to that bucket.
+Then **open `terraform/backend.tf`** and update the `bucket` value to match the bucket you just created. Terraform's S3 backend block cannot interpolate variables — this is a manual edit every time.
 
-### 2. Deploy infrastructure with placeholder AgentCore runtime ARN
+### 2. First Terraform apply — infrastructure with placeholder runtime ARNs
 
 ```bash
 cd ../terraform
@@ -437,22 +461,25 @@ This creates:
 - data ingestion pipelines (CloudTrail / CloudWatch / Config / CUR / Flow Logs / GuardDuty / DNS)
 - Cognito
 - API Gateway
-- Lambda functions
+- Lambda functions (with placeholder AgentCore runtime ARN)
 - DynamoDB conversations table
 - Bedrock guardrail
 - AgentCore Memory + strategies
 - AgentCore execution IAM role
 
-### 3. Deploy the agents to AgentCore
+### 3. First `agentcore launch` — create the runtime
+
+From inside `agents/`:
 
 ```bash
-cd ../agents
-agentcore launch
+source .venv/bin/activate        # must be inside the venv
+cd agents
+agentcore launch --auto-update-on-conflict
 ```
 
-This produces the real AgentCore runtime ARN and the stream runtime ARN.
+This produces the real AgentCore runtime ARN (and stream runtime ARN if you use both). Keep the output; you'll paste the ARNs into Terraform next.
 
-### 4. Re-apply Terraform with the real runtime ARN
+### 4. Second Terraform apply — wire the real runtime ARN
 
 In `terraform/terraform.tfvars`, uncomment and update:
 
@@ -470,7 +497,23 @@ terraform apply
 
 This tightens Lambda permissions from the placeholder runtime ARN to the real AgentCore runtime ARN.
 
-### 5. Export CLI variables and smoke-test
+### 5. Second `agentcore launch` — bake the guardrail env vars into the runtime
+
+The supervisor reads `LTTM_GUARDRAIL_ID` and `LTTM_GUARDRAIL_VERSION` from env vars at startup. Those env vars are set at `agentcore launch` time, so the agent must be redeployed once the guardrail is known:
+
+```bash
+export LTTM_GUARDRAIL_ID=$(terraform -chdir=terraform output -raw guardrail_id)
+export LTTM_GUARDRAIL_VERSION=$(terraform -chdir=terraform output -raw guardrail_version)
+
+cd ../agents
+agentcore launch --auto-update-on-conflict \
+  --env LTTM_GUARDRAIL_ID=$LTTM_GUARDRAIL_ID \
+  --env LTTM_GUARDRAIL_VERSION=$LTTM_GUARDRAIL_VERSION
+```
+
+Without this step the guardrail exists in AWS but the supervisor ignores it.
+
+### 6. Export CLI variables and smoke-test
 
 ```bash
 export LTTM_STREAM_API_URL=$(terraform -chdir=terraform output -raw lttm_stream_api_url)
@@ -542,10 +585,82 @@ node --check terraform/lambda/list_services/index.mjs
 
 - The project assumes a three-account model (main / dev / prod). Adapting to one or two accounts is mostly edits in `terraform/` provider aliases and `agents/utils/agent_vars.py`.
 - Some services are regional and must be enabled in every region you care about.
-- AWS Health account-specific events require Business or Enterprise Support.
+- The AWS Health API requires Business or Enterprise Support to return account-specific events. Without it, `query_health` simply returns no events; the rest of LTTM is unaffected.
 - CloudWatch log queries depend on log-group partition discovery when the user doesn't provide an exact log group.
 - Memory improves follow-up context but should not be treated as authorization or truth.
 - AgentCore Runtime runs in `PUBLIC` network mode in the provided config; private networking would require VPC-mode runtime and VPC endpoints.
+
+## Usage examples
+
+Once deployed, drive everything through `alexandra.sh`. A few example questions covering each domain and showing how the supervisor combines sub-agents:
+
+### Single-domain questions
+
+```bash
+# CloudTrail — who did what
+./alexandra.sh --new "show me the last 20 failed console logins across all accounts this week"
+
+# CUR — cost and spend
+./alexandra.sh --new "what were the top 5 most expensive services in the main account last month?"
+
+# Config — what changed
+./alexandra.sh --new "what changed on security group sg-0a1b2c3d in the last 7 days?"
+
+# GuardDuty — threats
+./alexandra.sh --new "any high severity GuardDuty findings in prod in the last 30 days?"
+
+# Inspector — vulnerabilities
+./alexandra.sh --new "what critical CVEs affect my Lambda functions in main?"
+
+# Macie — sensitive data
+./alexandra.sh --new "are there any credentials or PII exposed in S3 buckets in main?"
+
+# Organizations — org structure
+./alexandra.sh --new "list all accounts in my organization and which OU they belong to"
+```
+
+### Multi-domain questions (the supervisor calls two or more sub-agents)
+
+```bash
+# CUR + CloudTrail
+./alexandra.sh --new "who created the most expensive EC2 instance last month?"
+
+# Config + CloudTrail
+./alexandra.sh --new "who changed security group sg-0a1b2c3d yesterday and exactly what changed?"
+
+# GuardDuty + Access Analyzer
+./alexandra.sh --new "are any resources flagged by GuardDuty also publicly accessible?"
+
+# Inspector + CloudTrail
+./alexandra.sh --new "who deployed the Lambda that has the Log4Shell vulnerability?"
+```
+
+### Follow-ups in the same session
+
+Drop `--new` and LTTM continues the conversation, pulling context from AgentCore Memory:
+
+```bash
+./alexandra.sh --new "show me the last 10 IAM API calls in dev"
+./alexandra.sh "any of those denied?"
+./alexandra.sh "who made the denied ones and from which IP?"
+```
+
+### Memory and session controls
+
+```bash
+# Skip memory retrieval for this one question
+./alexandra.sh --clean "show me CloudTrail events in the last hour"
+
+# See past sessions
+./alexandra.sh --history
+
+# Health and service catalog
+./alexandra.sh --health
+./alexandra.sh --services
+
+# Arcade game while you wait for a slow query
+./alexandra.sh --notboring "count all API calls across all three accounts this month"
+```
 
 ## License
 
