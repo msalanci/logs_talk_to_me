@@ -1,11 +1,13 @@
 # Copyright (c) 2026 Michal Salanci
 # SPDX-License-Identifier: MIT
 
+
 # =============================================================================
 # lakeformation.tf — Lake Formation permissions for LTTM v3
 #
 # Grants lttm-agent-role access to query the lttm_logs Glue database and its tables via Athena
 # =============================================================================
+
 
 resource "aws_lakeformation_permissions" "agent_lttm_db" {
   principal   = aws_iam_role.agent.arn

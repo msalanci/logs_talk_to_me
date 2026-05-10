@@ -1,9 +1,11 @@
 # Copyright (c) 2026 Michal Salanci
 # SPDX-License-Identifier: MIT
 
+
 # =====================================================================================
 # outputs.tf - Declares the Terraform outputs for the LTTM S3 data lake module
 # =====================================================================================
+
 
 output "lake_bucket_arn" {
   description = "ARN of the LTTM S3 data lake bucket"

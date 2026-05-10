@@ -1,6 +1,7 @@
 # Copyright (c) 2026 Michal Salanci
 # SPDX-License-Identifier: MIT
 
+
 # =============================================================================
 # inspector.tf — Amazon Inspector v2 vulnerability scanning for LTTM v3
 #
@@ -8,6 +9,7 @@
 # regions (eu-central-1, us-east-1, us-west-2) for automated vulnerability scanning 
 # of EC2 instances, Lambda functions, and ECR images
 # =============================================================================
+
 
 resource "aws_inspector2_enabler" "main_eu" {
   account_ids    = ["${var.main_account_id}"]

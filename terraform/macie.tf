@@ -1,12 +1,14 @@
 # Copyright (c) 2026 Michal Salanci
 # SPDX-License-Identifier: MIT
 
+
 # =====================================================================================
 # macie.tf — Amazon Macie sensitive data discovery for LTTM v3.
 #
 # Enables Macie across all three LTTM accounts (main, dev, prod) in three regions: 
 # (eu-central-1, us-east-1, us-west-2) for automated sensitive data discovery in S3 buckets
 # =====================================================================================
+
 
 # Macie Account Enablement
 resource "aws_macie2_account" "main_eu" {
@@ -61,6 +63,7 @@ resource "aws_macie2_account" "prod_uswest2" {
   finding_publishing_frequency = "FIFTEEN_MINUTES"
   status                       = "ENABLED"
 }
+
 
 # Automated Sensitive Data Discovery
 resource "terraform_data" "macie_discovery_main_eu" {

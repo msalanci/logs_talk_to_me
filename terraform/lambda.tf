@@ -1,6 +1,7 @@
 # Copyright (c) 2026 Michal Salanci
 # SPDX-License-Identifier: MIT
 
+
 # =============================================================================
 # lambda.tf — Lambda functions for LTTM project
 #
@@ -12,9 +13,8 @@
     # - lttm-list-services
 # =============================================================================
 
-# =============================================================================
+
 # lttm-invoke-agent-stream
-# =============================================================================
 data "aws_iam_policy_document" "lambda_stream_trust" {
   statement {
     sid     = "AllowLambdaAssumeRole"
@@ -105,10 +105,8 @@ resource "aws_lambda_permission" "apigw_stream" {
   source_arn    = "${aws_api_gateway_rest_api.lttm_stream.execution_arn}/*/*"
 }
 
-# =============================================================================
-# lttm-list-conversations
-# =============================================================================
 
+# lttm-list-conversations
 data "aws_iam_policy_document" "lambda_list_conversations_trust" {
   statement {
     sid     = "AllowLambdaAssumeRole"
@@ -194,10 +192,8 @@ resource "aws_lambda_permission" "apigw_list_conversations" {
   source_arn    = "${aws_api_gateway_rest_api.lttm_stream.execution_arn}/*/*"
 }
 
-# =============================================================================
-# lttm-delete-conversation
-# =============================================================================
 
+# lttm-delete-conversation
 data "aws_iam_policy_document" "lambda_delete_conversation_trust" {
   statement {
     sid     = "AllowLambdaAssumeRole"
@@ -279,10 +275,8 @@ resource "aws_lambda_permission" "apigw_delete_conversation" {
   source_arn    = "${aws_api_gateway_rest_api.lttm_stream.execution_arn}/*/*"
 }
 
-# =============================================================================
-# lttm-health-check
-# =============================================================================
 
+# lttm-health-check
 data "aws_iam_policy_document" "lambda_health_check_trust" {
   statement {
     sid     = "AllowLambdaAssumeRole"
@@ -365,10 +359,8 @@ resource "aws_lambda_permission" "apigw_health_check" {
   source_arn    = "${aws_api_gateway_rest_api.lttm_stream.execution_arn}/*/*"
 }
 
-# =============================================================================
-# lttm-list-services
-# =============================================================================
 
+# lttm-list-services
 data "aws_iam_policy_document" "lambda_list_services_trust" {
   statement {
     sid     = "AllowLambdaAssumeRole"

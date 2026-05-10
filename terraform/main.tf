@@ -1,9 +1,11 @@
 # Copyright (c) 2026 Michal Salanci
 # SPDX-License-Identifier: MIT
 
+
 # =====================================================================================
 # main.tf - Configures the AWS providers
 # =====================================================================================
+
 
 provider "aws" {
   profile = var.main_profile

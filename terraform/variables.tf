@@ -1,6 +1,7 @@
 # Copyright (c) 2026 Michal Salanci
 # SPDX-License-Identifier: MIT
 
+
 # AWS Accounts
 variable "main_account_id" {
   type        = string

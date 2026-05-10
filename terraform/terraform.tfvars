@@ -1,6 +1,7 @@
 # Copyright (c) 2026 Michal Salanci
 # SPDX-License-Identifier: MIT
 
+
 # Project name
 project_name = "<project_name>" # Ex: lttm-cia
 

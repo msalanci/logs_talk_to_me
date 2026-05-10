@@ -1,9 +1,11 @@
 # Copyright (c) 2026 Michal Salanci
 # SPDX-License-Identifier: MIT
 
+
 # =============================================================================
 # iam.tf — Defines all IAM roles and inline policies for the LTTM data pipeline.
 # =============================================================================
+
 
 # lttm-firehose-main - Execution role for the main-account Kinesis Firehose delivery stream
 data "aws_iam_policy_document" "firehose_main_trust" {

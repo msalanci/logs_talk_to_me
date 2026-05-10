@@ -1,6 +1,7 @@
 # Copyright (c) 2026 Michal Salanci
 # SPDX-License-Identifier: MIT
 
+
 # =====================================================================================
 # s3.tf - Defines the central S3 data lake bucket and all its supporting configuration
 #
@@ -9,6 +10,7 @@
 #   - settings like encryption, versioning, and public access are separate 
 #     resources that reference the bucket by ID. 
 # ======================================================================================
+
 
 resource "aws_s3_bucket" "lake" {
   bucket = var.prefix
