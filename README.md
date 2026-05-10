@@ -32,10 +32,10 @@ This is the **v3** release: a full rewrite using **Amazon Bedrock AgentCore**, *
 - [Important files](#important-files)
 - [Prerequisites](#prerequisites)
 - [Configuration checklist](#configuration-checklist)
-- [Deployment order](#deployment-order)
 - [Glue tables](#glue-tables)
-- [Development notes](#development-notes)
 - [Known limitations](#known-limitations)
+- [Development notes](#development-notes)
+- [Deployment order](#deployment-order)
 - [Usage examples](#usage-examples)
 - [License](#license)
 
@@ -432,6 +432,67 @@ DATALAKE_BUCKET = "your-unique-datalake-bucket"
 DEFAULT_REGION = "eu-central-1"
 ```
 
+## Glue tables
+
+Athena queries these Glue tables in database `lttm_logs`.
+
+| Table                | Partition keys                                         |
+| -------------------- | ------------------------------------------------------ |
+| `cloudtrail_logs`    | `account_id`, `region`, `year`, `month`, `day`         |
+| `cloudwatch_logs`    | `log_group`, `account_id`, `year`, `month`             |
+| `config_logs`        | `account_id`, `year`, `month`, `day`                   |
+| `config_snapshot`    | `account_id`, `year`, `month`, `day`                   |
+| `cur_data`           | `billing_period`                                       |
+| `flowlogs`           | `aws_account_id`, `aws_region`, `year`, `month`, `day` |
+| `guardduty_findings` | `account_id`, `year`, `month`, `day`                   |
+
+If you change table partitioning in `terraform/athena.tf`, also update `agents/utils/agent_vars.py` — `SQLValidatorHook` uses that mapping to validate SQL before Athena runs.
+
+## Known limitations
+
+- The project assumes a three-account model (main / dev / prod). Adapting to one or two accounts is mostly edits in `terraform/` provider aliases and `agents/utils/agent_vars.py`.
+- Some services are regional and must be enabled in every region you care about.
+- The AWS Health API requires Business or Enterprise Support to return account-specific events. Without it, `query_health` simply returns no events; the rest of LTTM is unaffected.
+- CloudWatch log queries depend on log-group partition discovery when the user doesn't provide an exact log group.
+- Memory improves follow-up context but should not be treated as authorization or truth.
+- AgentCore Runtime runs in `PUBLIC` network mode in the provided config; private networking would require VPC-mode runtime and VPC endpoints.
+
+## Development notes
+
+### Lambda zips
+
+Terraform builds Lambda zip files from source directories using `archive_file`. The `.zip` artifacts are excluded from git (`terraform/lambda/*.zip` in `.gitignore`); the source directories are the source of truth.
+
+### Files intentionally excluded from the repo
+
+`.gitignore` excludes developer-local concerns:
+
+```text
+.terraform/
+*.tfstate*
+terraform/lambda/*.zip
+__pycache__/
+.pytest_cache/
+agents/hooks/retired/
+tests/
+scripts/
+.bedrock_agentcore.yaml       # AgentCore CLI writes this per deployment
+.bedrock_agentcore/           # AgentCore CLI state directory
+```
+
+That means a fresh clone gives you a runnable repo without any leftover local state, credentials, or deployment-specific config. The AgentCore CLI deployment flow will generate the deployment-specific AgentCore config for your account.
+
+### Basic checks
+
+```bash
+python3 -m compileall agents
+node --check terraform/lambda/invoke_agent_stream/index.mjs
+node --check terraform/lambda/list_conversations/index.mjs
+node --check terraform/lambda/delete_conversation/index.mjs
+node --check terraform/lambda/health_check/index.mjs
+node --check terraform/lambda/list_services/index.mjs
+```
+
 ## Deployment order
 
 The order matters because the Lambda permissions need the AgentCore runtime ARN, and AgentCore needs the IAM role and memory created by Terraform. The guardrail also needs two `agentcore launch` calls — one to create the runtime, and one to reinject the guardrail env vars after Terraform has created the guardrail.
@@ -528,67 +589,6 @@ Then:
 ./alexandra.sh --services
 ./alexandra.sh --new "show me last 3 CloudTrail events today in main"
 ```
-
-## Glue tables
-
-Athena queries these Glue tables in database `lttm_logs`.
-
-| Table                | Partition keys                                         |
-| -------------------- | ------------------------------------------------------ |
-| `cloudtrail_logs`    | `account_id`, `region`, `year`, `month`, `day`         |
-| `cloudwatch_logs`    | `log_group`, `account_id`, `year`, `month`             |
-| `config_logs`        | `account_id`, `year`, `month`, `day`                   |
-| `config_snapshot`    | `account_id`, `year`, `month`, `day`                   |
-| `cur_data`           | `billing_period`                                       |
-| `flowlogs`           | `aws_account_id`, `aws_region`, `year`, `month`, `day` |
-| `guardduty_findings` | `account_id`, `year`, `month`, `day`                   |
-
-If you change table partitioning in `terraform/athena.tf`, also update `agents/utils/agent_vars.py` — `SQLValidatorHook` uses that mapping to validate SQL before Athena runs.
-
-## Development notes
-
-### Lambda zips
-
-Terraform builds Lambda zip files from source directories using `archive_file`. The `.zip` artifacts are excluded from git (`terraform/lambda/*.zip` in `.gitignore`); the source directories are the source of truth.
-
-### Files intentionally excluded from the repo
-
-`.gitignore` excludes developer-local concerns:
-
-```text
-.terraform/
-*.tfstate*
-terraform/lambda/*.zip
-__pycache__/
-.pytest_cache/
-agents/hooks/retired/
-tests/
-scripts/
-.bedrock_agentcore.yaml       # AgentCore CLI writes this per deployment
-.bedrock_agentcore/           # AgentCore CLI state directory
-```
-
-That means a fresh clone gives you a runnable repo without any leftover local state, credentials, or deployment-specific config. The AgentCore CLI deployment flow will generate the deployment-specific AgentCore config for your account.
-
-### Basic checks
-
-```bash
-python3 -m compileall agents
-node --check terraform/lambda/invoke_agent_stream/index.mjs
-node --check terraform/lambda/list_conversations/index.mjs
-node --check terraform/lambda/delete_conversation/index.mjs
-node --check terraform/lambda/health_check/index.mjs
-node --check terraform/lambda/list_services/index.mjs
-```
-
-## Known limitations
-
-- The project assumes a three-account model (main / dev / prod). Adapting to one or two accounts is mostly edits in `terraform/` provider aliases and `agents/utils/agent_vars.py`.
-- Some services are regional and must be enabled in every region you care about.
-- The AWS Health API requires Business or Enterprise Support to return account-specific events. Without it, `query_health` simply returns no events; the rest of LTTM is unaffected.
-- CloudWatch log queries depend on log-group partition discovery when the user doesn't provide an exact log group.
-- Memory improves follow-up context but should not be treated as authorization or truth.
-- AgentCore Runtime runs in `PUBLIC` network mode in the provided config; private networking would require VPC-mode runtime and VPC endpoints.
 
 ## Usage examples
 
