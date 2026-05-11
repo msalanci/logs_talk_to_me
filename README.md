@@ -457,14 +457,19 @@ Quick map of the most important files:
 
 Install the CLI tools below. Versions shown are the ones this project has been tested against — newer usually works, older may not.
 
-| Tool                 | Why                                                                                  | Install (macOS / Homebrew) |
-| -------------------- | ------------------------------------------------------------------------------------ | -------------------------- |
-| **Python 3.12**      | AgentCore runtime target is `PYTHON_3_12`; CLI driver needs it                       | `brew install python@3.12` |
-| **Terraform ≥ 1.14** | Provisions all AWS infrastructure                                                    | `brew install terraform`   |
-| **AWS CLI v2**       | Auth, Terraform backend, `alexandra.sh`                                              | `brew install awscli`      |
-| **Node.js 20**       | Streaming Lambda shim is Node 20 — used for `node --check` and `npm install` locally | `brew install node@20`     |
-| **jq**               | Shell helpers in scripts                                                             | `brew install jq`          |
-| **git**              | Clone + deploy                                                                       | `brew install git`         |
+| Tool                 | Why                                                                                                                                                                 |
+| -------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Python 3.14**      | Used to create the local `.venv` that runs the `agentcore` CLI. AgentCore Runtime itself runs on Python 3.12 inside the container, but the driver venv can be 3.10+ |
+| **Terraform ≥ 1.14** | Provisions all AWS infrastructure                                                                                                                                   |
+| **AWS CLI v2**       | Auth, Terraform backend, `alexandra.sh`                                                                                                                             |
+| **Node.js 20**       | Streaming Lambda shim is Node 20 — used for `node --check` and `npm install` locally                                                                                |
+| **jq**               | Shell helpers in scripts                                                                                                                                            |
+
+**Install (macOS / Homebrew):**
+
+```bash
+brew install python@3.14 terraform awscli node@20 jq
+```
 
 AWS provider for Terraform is pinned to `~> 6.43` and is fetched automatically on `terraform init`.
 
@@ -563,7 +568,7 @@ The `agentcore` CLI and a few helper scripts need Python packages that should no
 
 ```bash
 cd ..                          # back to repo root from terraform/
-python3.12 -m venv .venv
+python3.14 -m venv .venv
 source .venv/bin/activate
 pip install --upgrade pip
 pip install -r requirements-dev.txt
@@ -588,19 +593,59 @@ source .venv/bin/activate
 
 Deactivate with `deactivate` when done.
 
-### 4. First `agentcore launch` — create the runtime
+### 4. Configure the agent — generate `.bedrock_agentcore.yaml`
 
-From inside `agents/`:
+Before you can launch, the starter toolkit needs a config file that tells it which entrypoint to package, which IAM role to use, which region to target, and so on. Run `agentcore configure` from inside `agents/` and answer the prompts.
 
 ```bash
 source .venv/bin/activate        # if not already active
 cd agents
+
+agentcore configure \
+  --entrypoint supervisor_agent.py \
+  --name lttm_supervisor_stream \
+  --deployment-type direct_code_deploy \
+  --runtime PYTHON_3_12 \
+  --region us-west-2 \
+  --protocol HTTP \
+  --execution-role "$(terraform -chdir=../terraform output -raw agent_execution_role_arn)" \
+  --requirements-file requirements.txt
+```
+
+What each flag matches in the resulting `agents/.bedrock_agentcore.yaml`:
+
+| Flag                  | Value                                                | Shows up in yaml as                                         |
+| --------------------- | ---------------------------------------------------- | ----------------------------------------------------------- |
+| `--name`              | `lttm_supervisor_stream`                             | `agents.<name>` key + `default_agent`                       |
+| `--entrypoint`        | `supervisor_agent.py`                                | `entrypoint`                                                |
+| `--deployment-type`   | `direct_code_deploy`                                 | `deployment_type` — packages code as .zip, no Docker needed |
+| `--runtime`           | `PYTHON_3_12`                                        | `runtime_type`                                              |
+| `--region`            | `us-west-2`                                          | `aws.region`                                                |
+| `--protocol`          | `HTTP`                                               | `aws.protocol_configuration.server_protocol`                |
+| `--execution-role`    | ARN from `terraform output agent_execution_role_arn` | `aws.execution_role`                                        |
+| `--requirements-file` | `requirements.txt`                                   | tells CodeBuild which file to `pip install` from            |
+
+The interactive prompts you will still see:
+
+- **Memory options** — choose `STM_AND_LTM` (short-term + long-term) so the supervisor keeps semantic, summarization, and episodic strategies. Use `--disable-memory` if you really want stateless.
+- **Network mode** — accept the default `PUBLIC`. VPC mode requires extra endpoints and the Terraform stack does not set those up.
+- **Observability** — accept `enabled: true`. This turns on OpenTelemetry traces in CloudWatch; without it `/aws/bedrock-agentcore/runtimes/...` log groups stay empty.
+
+Platform (`linux/arm64`) is hardcoded by AgentCore Runtime — there is no prompt for it. You cannot deploy x86.
+
+Run `cat agents/.bedrock_agentcore.yaml` and confirm the values match what you expect before moving on.
+
+### 5. First `agentcore launch` — create the runtime
+
+Still inside `agents/`:
+
+```bash
 agentcore launch --auto-update-on-conflict
 ```
 
 This produces the real AgentCore runtime ARN (and stream runtime ARN if you use both). Keep the output; you'll paste the ARNs into Terraform next.
 
-### 5. Second Terraform apply — wire the real runtime ARN
+### 6. Second Terraform apply — wire the real runtime ARN
 
 In `terraform/terraform.tfvars`, uncomment and update:
 
@@ -618,7 +663,7 @@ terraform apply
 
 This tightens Lambda permissions from the placeholder runtime ARN to the real AgentCore runtime ARN.
 
-### 6. Second `agentcore launch` — bake the guardrail env vars into the runtime
+### 7. Second `agentcore launch` — bake the guardrail env vars into the runtime
 
 The supervisor reads `LTTM_GUARDRAIL_ID` and `LTTM_GUARDRAIL_VERSION` from env vars at startup. Those env vars are set at `agentcore launch` time, so the agent must be redeployed once the guardrail is known:
 
@@ -634,7 +679,7 @@ agentcore launch --auto-update-on-conflict \
 
 Without this step the guardrail exists in AWS but the supervisor ignores it.
 
-### 7. Verify `agents/.bedrock_agentcore.yaml` and redeploy if anything is missing
+### 8. Verify `agents/.bedrock_agentcore.yaml` and redeploy if anything is missing
 
 `agentcore launch` writes (or rewrites) `agents/.bedrock_agentcore.yaml` on every run. This file is gitignored — it is deployment-specific and regenerated per account. After the second `agentcore launch` finishes, open the file and confirm it looks like this, with the placeholders replaced by real values from your account:
 
@@ -727,7 +772,7 @@ agentcore launch --auto-update-on-conflict \
 
 This third launch is usually only needed if `agentcore configure` was never run or if observability/memory were attached to the runtime after initial creation.
 
-### 8. Export CLI variables and smoke-test
+### 9. Export CLI variables and smoke-test
 
 ```bash
 export LTTM_STREAM_API_URL=$(terraform -chdir=terraform output -raw lttm_stream_api_url)
