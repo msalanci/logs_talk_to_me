@@ -691,6 +691,8 @@ agentcore invoke '{"prompt": "Hello"}'
 
 `agentcore status` should show the runtime as `ACTIVE`. The invoke should return a greeting from the supervisor. If either fails, check CloudWatch logs at `/aws/bedrock-agentcore/runtimes/lttm_supervisor_stream-…-DEFAULT`.
 
+If you see error, it might be a "shebang issue" - see THIS article for workaround.
+
 ### 8. Verify `agents/.bedrock_agentcore.yaml` and redeploy if anything is missing
 
 `agentcore launch` writes (or rewrites) `agents/.bedrock_agentcore.yaml` on every run. This file is gitignored — it is deployment-specific and regenerated per account. After the second `agentcore launch` finishes, open the file and confirm it looks like this, with the placeholders replaced by real values from your account:
