@@ -626,7 +626,7 @@ What each flag matches in the resulting `agents/.bedrock_agentcore.yaml`:
 | `--requirements-file` | `requirements.txt`                                   | tells CodeBuild which file to `pip install` from            |
 
 
-*the value `lttm_supervisor_stream` of the `--name` is just an exampe. You can choose your own. 
+*_the value `lttm_supervisor_stream` of the `--name` is just an exampe. You can choose your own._  
 
 The interactive prompts you will still see:
 
