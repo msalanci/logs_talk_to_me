@@ -14,6 +14,8 @@ Instead of writing Athena SQL, clicking through multiple AWS consoles, or stitch
 ./alexandra.sh "any GuardDuty findings in prod that involve publicly accessible resources?"
 ```
 
+![Architecture diagram](docs/images/architecture2.png)
+
 This is the **v3** release: a full rewrite using **Amazon Bedrock AgentCore**, **Strands Agents**, **Amazon Athena**, **AWS Glue Data Catalog**, **Amazon S3**, **API Gateway**, **Cognito**, and a multi-account AWS log data lake.
 
 > Earlier versions (`v1` using Amazon Lex and a single Lambda, `v2` using API Gateway with three Lambdas) live on older branches of the original repository and are documented there. This version uses a supervisor/sub-agent architecture running in Bedrock AgentCore Runtime.
@@ -146,6 +148,8 @@ API-based sub-agents:
 Access Analyzer, Health, Organizations, Quotas, Macie, Inspector, GuardDuty current findings
 ```
 
+![Architecture diagram](docs/images/datasources-all2.png)
+
 ## Why multiple agents?
 
 This project uses a **sub-agent-as-tool** pattern.
@@ -176,6 +180,8 @@ Benefits:
 - better SQL/tool quality
 - different models can be used per agent if needed
 - supervisor can combine multiple sources into one answer
+
+![Architecture diagram](docs/images/agents.png)
 
 ## Models
 
@@ -208,6 +214,8 @@ LTTM does not rely on a system prompt alone. The runtime uses multiple guardrail
 The key idea:
 
 > Agents may generate text, but deterministic checks decide what can execute.
+
+![Architecture diagram](docs/images/flow.png)
 
 ## Memory
 
@@ -346,7 +354,7 @@ If you change table partitioning in `terraform/athena.tf`, also update `agents/u
 - CloudWatch log queries depend on log-group partition discovery when the user doesn't provide an exact log group.
 - Memory improves follow-up context but should not be treated as authorization or truth.
 - AgentCore Runtime runs in `PUBLIC` network mode in the provided config; private networking would require VPC-mode runtime and VPC endpoints.
-- Long-running streaming queries (>~120s) may be cut off client-side by HTTPS-inspecting antivirus software (ESET, Kaspersky, Avast and similar) that MITMs the SSL connection and enforces a connection-lifetime cap. If `alexandra.sh` ends with `(124s)` and no final answer on complex multi-agent questions while CloudWatch shows the server completed, either add `*.execute-api.<region>.amazonaws.com` to the antivirus SSL/TLS filter exclusion list, disable SSL filtering for testing, or call the agent directly with `agentcore invoke`. A separate issue inside `alexandra.sh`'s own SSE parser pipeline can also cause a ~124s cut on complex queries even with antivirus off — see `PROBLEMS.md` Problem 59 for status.
+
 
 ## Important files
 
