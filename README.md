@@ -30,11 +30,11 @@ This is the **v3** release: a full rewrite using **Amazon Bedrock AgentCore**, *
 - [Streaming CLI](#streaming-cli)
 - [CLI flags](#cli-flags)
 - [Repository layout](#repository-layout)
-- [Important files](#important-files)
-- [Prerequisites](#prerequisites)
 - [Configuration checklist](#configuration-checklist)
 - [Glue tables](#glue-tables)
 - [Known limitations](#known-limitations)
+- [Important files](#important-files)
+- [Prerequisites](#prerequisites)
 - [Development notes](#development-notes)
 - [Deployment order](#deployment-order)
 - [Usage examples](#usage-examples)
@@ -322,53 +322,6 @@ Use `--new` for a new investigation. Do not use it for every follow-up question 
 └── LICENSE                     # MIT
 ```
 
-## Important files
-
-For the full per-file description (what each module does and what it connects to), see [`docs/FILE_REFERENCE.md`](./docs/FILE_REFERENCE.md).
-
-Quick map of the most important files:
-
-| File                         | Purpose                                                      |
-| ---------------------------- | ------------------------------------------------------------ |
-| `agents/supervisor_agent.py` | AgentCore entrypoint; routes questions and streams events    |
-| `agents/*_agent.py`          | Twelve sub-agent wrappers exposed to the supervisor as tools |
-| `agents/tools/*_tool.py`     | Shared Athena executor + six API boto3 wrappers              |
-| `agents/hooks/*.py`          | Deterministic guardrails and AgentCore Memory hook           |
-| `agents/plugins/*.py`        | Logging plugin and Claude Haiku LLM-judge steering plugin    |
-| `agents/utils/agent_vars.py` | Account IDs, model IDs, Glue partition rules, internal names |
-| `terraform/athena.tf`        | Athena workgroup + Glue database and tables                  |
-| `terraform/agents.tf`        | Agent IAM role + AgentCore Memory + memory strategies        |
-| `terraform/apigw.tf`         | REST API (five Cognito-authorized routes)                    |
-| `terraform/lambda.tf`        | Five Lambdas behind the API Gateway                          |
-| `terraform/cognito.tf`       | User pool, app client, initial admin user                    |
-| `terraform/dynamodb.tf`      | Conversations metadata table with TTL                        |
-| `alexandra.sh`               | Bash CLI (Cognito auth + SSE stream)                         |
-
-## Prerequisites
-
-You need:
-
-- three AWS accounts in one AWS Organization (the original setup used main, dev, prod accounts managed through Control Tower; Control Tower itself is not a hard code dependency)
-- AWS CLI profiles for all three accounts
-- Terraform `>= 1.14`
-- AWS provider `~> 6.43`
-- Python 3.12 for local scripts and AgentCore runtime packaging
-- AWS CLI v2
-- Bedrock AgentCore CLI/tooling installed locally
-- access to the Bedrock models configured in `agents/utils/agent_vars.py` (Claude Sonnet 4 and Claude Haiku 4.5 by default, via inference profile in us-west-2)
-
-> **Note on the AWS Health agent:** the AWS Health API only returns account-specific events for accounts on Business or Enterprise Support. Without it, `query_health` still works — it just returns no events. The rest of LTTM is unaffected.
-
-The project was originally built across three regions:
-
-```text
-eu-central-1  → main infrastructure, Lambda, API Gateway, data lake
-us-west-2     → Bedrock AgentCore Runtime and Bedrock models
-us-east-1     → global-service resources (Route 53 query logging, CUR export)
-```
-
-You can change regions in `terraform/terraform.tfvars` and `agents/utils/agent_vars.py`, but make sure every hardcoded service dependency is updated consistently.
-
 ## Configuration checklist
 
 Before deploying, edit these files.
@@ -470,6 +423,69 @@ If you change table partitioning in `terraform/athena.tf`, also update `agents/u
 - AgentCore Runtime runs in `PUBLIC` network mode in the provided config; private networking would require VPC-mode runtime and VPC endpoints.
 - Long-running streaming queries (>~120s) may be cut off client-side by HTTPS-inspecting antivirus software (ESET, Kaspersky, Avast and similar) that MITMs the SSL connection and enforces a connection-lifetime cap. If `alexandra.sh` ends with `(124s)` and no final answer on complex multi-agent questions while CloudWatch shows the server completed, either add `*.execute-api.<region>.amazonaws.com` to the antivirus SSL/TLS filter exclusion list, disable SSL filtering for testing, or call the agent directly with `agentcore invoke`. A separate issue inside `alexandra.sh`'s own SSE parser pipeline can also cause a ~124s cut on complex queries even with antivirus off — see `PROBLEMS.md` Problem 59 for status.
 
+## Important files
+
+For the full per-file description (what each module does and what it connects to), see [`docs/FILE_REFERENCE.md`](./docs/FILE_REFERENCE.md).
+
+Quick map of the most important files:
+
+| File                         | Purpose                                                      |
+| ---------------------------- | ------------------------------------------------------------ |
+| `agents/supervisor_agent.py` | AgentCore entrypoint; routes questions and streams events    |
+| `agents/*_agent.py`          | Twelve sub-agent wrappers exposed to the supervisor as tools |
+| `agents/tools/*_tool.py`     | Shared Athena executor + six API boto3 wrappers              |
+| `agents/hooks/*.py`          | Deterministic guardrails and AgentCore Memory hook           |
+| `agents/plugins/*.py`        | Logging plugin and Claude Haiku LLM-judge steering plugin    |
+| `agents/utils/agent_vars.py` | Account IDs, model IDs, Glue partition rules, internal names |
+| `terraform/athena.tf`        | Athena workgroup + Glue database and tables                  |
+| `terraform/agents.tf`        | Agent IAM role + AgentCore Memory + memory strategies        |
+| `terraform/apigw.tf`         | REST API (five Cognito-authorized routes)                    |
+| `terraform/lambda.tf`        | Five Lambdas behind the API Gateway                          |
+| `terraform/cognito.tf`       | User pool, app client, initial admin user                    |
+| `terraform/dynamodb.tf`      | Conversations metadata table with TTL                        |
+| `alexandra.sh`               | Bash CLI (Cognito auth + SSE stream)                         |
+
+## Prerequisites
+
+### AWS setup
+
+- Three AWS accounts in one AWS Organization (the original setup used main, dev, prod accounts managed through Control Tower; Control Tower itself is not a hard code dependency).
+- AWS CLI profiles for all three accounts.
+- Access to the Bedrock models configured in `agents/utils/agent_vars.py` (Claude Sonnet 4 and Claude Haiku 4.5 by default, via inference profile in `us-west-2`).
+
+### System tools
+
+Install the CLI tools below. Versions shown are the ones this project has been tested against — newer usually works, older may not.
+
+| Tool                 | Why                                                                                  | Install (macOS / Homebrew) |
+| -------------------- | ------------------------------------------------------------------------------------ | -------------------------- |
+| **Python 3.12**      | AgentCore runtime target is `PYTHON_3_12`; CLI driver needs it                       | `brew install python@3.12` |
+| **Terraform ≥ 1.14** | Provisions all AWS infrastructure                                                    | `brew install terraform`   |
+| **AWS CLI v2**       | Auth, Terraform backend, `alexandra.sh`                                              | `brew install awscli`      |
+| **Node.js 20**       | Streaming Lambda shim is Node 20 — used for `node --check` and `npm install` locally | `brew install node@20`     |
+| **jq**               | Shell helpers in scripts                                                             | `brew install jq`          |
+| **git**              | Clone + deploy                                                                       | `brew install git`         |
+
+AWS provider for Terraform is pinned to `~> 6.43` and is fetched automatically on `terraform init`.
+
+### Python virtual environment (required for `agentcore` CLI)
+
+The `agentcore` CLI used to deploy the runtime comes from `bedrock-agentcore-starter-toolkit`. Install it in an isolated venv so it does not pollute the system Python. See [step 3 of the deployment order](#3-create-and-activate-a-python-virtual-environment) for the exact commands — they are part of the deploy sequence.
+
+### Regions
+
+The project was originally built across three regions:
+
+```text
+eu-central-1  → main infrastructure, Lambda, API Gateway, data lake
+us-west-2     → Bedrock AgentCore Runtime and Bedrock models
+us-east-1     → global-service resources (Route 53 query logging, CUR export)
+```
+
+You can change regions in `terraform/terraform.tfvars` and `agents/utils/agent_vars.py`, but make sure every hardcoded service dependency is updated consistently.
+
+> **Note on the AWS Health agent:** the AWS Health API only returns account-specific events for accounts on Business or Enterprise Support. Without it, `query_health` still works — it just returns no events. The rest of LTTM is unaffected.
+
 ## Development notes
 
 ### Lambda zips
@@ -541,19 +557,50 @@ This creates:
 - AgentCore Memory + strategies
 - AgentCore execution IAM role
 
-### 3. First `agentcore launch` — create the runtime
+### 3. Create and activate a Python virtual environment
+
+The `agentcore` CLI and a few helper scripts need Python packages that should not be installed system-wide. Create a dedicated venv in the repo root before the first `agentcore launch`:
+
+```bash
+cd ..                          # back to repo root from terraform/
+python3.12 -m venv .venv
+source .venv/bin/activate
+pip install --upgrade pip
+pip install -r requirements-dev.txt
+```
+
+`requirements-dev.txt` pins the two packages needed on the driver machine:
+
+```text
+bedrock-agentcore-starter-toolkit>=0.3,<1.0
+boto3>=1.34,<2.0
+```
+
+Installing `bedrock-agentcore-starter-toolkit` transitively pulls in `strands-agents`, `bedrock-agentcore`, `httpx`, `pydantic`, `typer`, and the rest of the Python deps the runtime image uses.
+
+> `agents/requirements.txt` is a different file — it declares the runtime-image deps installed inside the AgentCore container during `agentcore launch`. Do NOT merge the two.
+
+Every time you open a new terminal to deploy or run `alexandra.sh`, reactivate the venv first:
+
+```bash
+source .venv/bin/activate
+```
+
+Deactivate with `deactivate` when done.
+
+### 4. First `agentcore launch` — create the runtime
 
 From inside `agents/`:
 
 ```bash
-source .venv/bin/activate        # must be inside the venv
+source .venv/bin/activate        # if not already active
 cd agents
 agentcore launch --auto-update-on-conflict
 ```
 
 This produces the real AgentCore runtime ARN (and stream runtime ARN if you use both). Keep the output; you'll paste the ARNs into Terraform next.
 
-### 4. Second Terraform apply — wire the real runtime ARN
+### 5. Second Terraform apply — wire the real runtime ARN
 
 In `terraform/terraform.tfvars`, uncomment and update:
 
@@ -571,7 +618,7 @@ terraform apply
 
 This tightens Lambda permissions from the placeholder runtime ARN to the real AgentCore runtime ARN.
 
-### 5. Second `agentcore launch` — bake the guardrail env vars into the runtime
+### 6. Second `agentcore launch` — bake the guardrail env vars into the runtime
 
 The supervisor reads `LTTM_GUARDRAIL_ID` and `LTTM_GUARDRAIL_VERSION` from env vars at startup. Those env vars are set at `agentcore launch` time, so the agent must be redeployed once the guardrail is known:
 
@@ -587,7 +634,7 @@ agentcore launch --auto-update-on-conflict \
 
 Without this step the guardrail exists in AWS but the supervisor ignores it.
 
-### 6. Verify `agents/.bedrock_agentcore.yaml` and redeploy if anything is missing
+### 7. Verify `agents/.bedrock_agentcore.yaml` and redeploy if anything is missing
 
 `agentcore launch` writes (or rewrites) `agents/.bedrock_agentcore.yaml` on every run. This file is gitignored — it is deployment-specific and regenerated per account. After the second `agentcore launch` finishes, open the file and confirm it looks like this, with the placeholders replaced by real values from your account:
 
@@ -680,7 +727,7 @@ agentcore launch --auto-update-on-conflict \
 
 This third launch is usually only needed if `agentcore configure` was never run or if observability/memory were attached to the runtime after initial creation.
 
-### 7. Export CLI variables and smoke-test
+### 8. Export CLI variables and smoke-test
 
 ```bash
 export LTTM_STREAM_API_URL=$(terraform -chdir=terraform output -raw lttm_stream_api_url)
