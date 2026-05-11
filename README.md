@@ -682,6 +682,15 @@ agentcore launch --auto-update-on-conflict \
 
 Without this step the guardrail exists in AWS but the supervisor ignores it.
 
+Verify the runtime is healthy and responds:
+
+```bash
+agentcore status
+agentcore invoke '{"prompt": "Hello"}'
+```
+
+`agentcore status` should show the runtime as `ACTIVE`. The invoke should return a greeting from the supervisor. If either fails, check CloudWatch logs at `/aws/bedrock-agentcore/runtimes/lttm_supervisor_stream-…-DEFAULT`.
+
 ### 8. Verify `agents/.bedrock_agentcore.yaml` and redeploy if anything is missing
 
 `agentcore launch` writes (or rewrites) `agents/.bedrock_agentcore.yaml` on every run. This file is gitignored — it is deployment-specific and regenerated per account. After the second `agentcore launch` finishes, open the file and confirm it looks like this, with the placeholders replaced by real values from your account:
