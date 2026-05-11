@@ -624,7 +624,9 @@ What each flag matches in the resulting `agents/.bedrock_agentcore.yaml`:
 | `--protocol`          | `HTTP`                                               | `aws.protocol_configuration.server_protocol`                |
 | `--execution-role`    | ARN from `terraform output agent_execution_role_arn` | `aws.execution_role`                                        |
 | `--requirements-file` | `requirements.txt`                                   | tells CodeBuild which file to `pip install` from            |
-*the value `lttm_supervisor_stream` of the `--name` is just an exampe. You can choose your own
+
+
+*the value `lttm_supervisor_stream` of the `--name` is just an exampe. You can choose your own. 
 
 The interactive prompts you will still see:
 
