@@ -30,12 +30,12 @@ This is the **v3** release: a full rewrite using **Amazon Bedrock AgentCore**, *
 - [Streaming CLI](#streaming-cli)
 - [CLI flags](#cli-flags)
 - [Repository layout](#repository-layout)
-- [Configuration checklist](#configuration-checklist)
 - [Glue tables](#glue-tables)
 - [Known limitations](#known-limitations)
 - [Important files](#important-files)
 - [Prerequisites](#prerequisites)
 - [Development notes](#development-notes)
+- [Configuration checklist](#configuration-checklist)
 - [Deployment order](#deployment-order)
 - [Usage examples](#usage-examples)
 - [License](#license)
@@ -322,81 +322,6 @@ Use `--new` for a new investigation. Do not use it for every follow-up question 
 └── LICENSE                     # MIT
 ```
 
-## Configuration checklist
-
-Before deploying, edit these files.
-
-### 1. `terraform-bootstrap/terraform.tfvars`
-
-Set the state bucket name, region, and CLI profile used to create it.
-
-```hcl
-backend_bucket         = "your-unique-tf-state-bucket"
-backend_region         = "eu-central-1"
-backend_region_profile = "main"
-```
-
-Then **open `terraform/backend.tf`** and hardcode the same bucket name there. Terraform's S3 backend block cannot use variables, so this is a manual edit:
-
-```hcl
-terraform {
-  backend "s3" {
-    bucket       = "your-unique-tf-state-bucket"   # ← edit this line
-    key          = "lttm/terraform.tfstate"
-    region       = "eu-central-1"
-    use_lockfile = true
-  }
-}
-```
-
-### 2. `terraform/terraform.tfvars`
-
-```hcl
-project_name = "lttm-cia"
-
-main_account_id = "123456789012"
-dev_account_id  = "234567890123"
-prod_account_id = "345678901234"
-
-dev_account_email  = "dev@example.com"
-prod_account_email = "prod@example.com"
-
-project_region   = "eu-central-1"
-global_region    = "us-east-1"
-agentcore_region = "us-west-2"
-
-main_profile = "main"
-dev_profile  = "dev"
-prod_profile = "prod"
-
-prefix = "your-unique-datalake-bucket"
-
-hosted_zone_ids = {
-  # "Z0123456789ABCDEF" = "example.com"  # optional DNS query logging
-}
-
-cognito_initial_user          = "admin"
-cognito_initial_email         = "admin@example.com"
-cognito_initial_temp_password = "ChangeMeOnFirstLogin!42"
-```
-
-Leave `cli_runtime_arn` / `cli_stream_runtime_arn` at their placeholder defaults for the **first** `terraform apply`. Fill in the real AgentCore runtime ARN after the agent is deployed, then re-apply.
-
-### 3. `agents/utils/agent_vars.py`
-
-Set the same account IDs, labels, emails, default region, and data lake bucket.
-
-```python
-ACC1_ID = "123456789012"
-ACC1_LABEL = "main"
-ACC1_EMAIL = "main@example.com"
-
-# … ACC2_*, ACC3_* …
-
-DATALAKE_BUCKET = "your-unique-datalake-bucket"
-DEFAULT_REGION = "eu-central-1"
-```
-
 ## Glue tables
 
 Athena queries these Glue tables in database `lttm_logs`.
@@ -525,6 +450,81 @@ node --check terraform/lambda/list_conversations/index.mjs
 node --check terraform/lambda/delete_conversation/index.mjs
 node --check terraform/lambda/health_check/index.mjs
 node --check terraform/lambda/list_services/index.mjs
+```
+
+## Configuration checklist
+
+Before deploying, edit these files.
+
+### 1. `terraform-bootstrap/terraform.tfvars`
+
+Set the state bucket name, region, and CLI profile used to create it.
+
+```hcl
+backend_bucket         = "your-unique-tf-state-bucket"
+backend_region         = "eu-central-1"
+backend_region_profile = "main"
+```
+
+Then **open `terraform/backend.tf`** and hardcode the same bucket name there. Terraform's S3 backend block cannot use variables, so this is a manual edit:
+
+```hcl
+terraform {
+  backend "s3" {
+    bucket       = "your-unique-tf-state-bucket"   # ← edit this line
+    key          = "lttm/terraform.tfstate"
+    region       = "eu-central-1"
+    use_lockfile = true
+  }
+}
+```
+
+### 2. `terraform/terraform.tfvars`
+
+```hcl
+project_name = "lttm-cia"
+
+main_account_id = "123456789012"
+dev_account_id  = "234567890123"
+prod_account_id = "345678901234"
+
+dev_account_email  = "dev@example.com"
+prod_account_email = "prod@example.com"
+
+project_region   = "eu-central-1"
+global_region    = "us-east-1"
+agentcore_region = "us-west-2"
+
+main_profile = "main"
+dev_profile  = "dev"
+prod_profile = "prod"
+
+prefix = "your-unique-datalake-bucket"
+
+hosted_zone_ids = {
+  # "Z0123456789ABCDEF" = "example.com"  # optional DNS query logging
+}
+
+cognito_initial_user          = "admin"
+cognito_initial_email         = "admin@example.com"
+cognito_initial_temp_password = "ChangeMeOnFirstLogin!42"
+```
+
+Leave `cli_runtime_arn` / `cli_stream_runtime_arn` at their placeholder defaults for the **first** `terraform apply`. Fill in the real AgentCore runtime ARN after the agent is deployed, then re-apply.
+
+### 3. `agents/utils/agent_vars.py`
+
+Set the same account IDs, labels, emails, default region, and data lake bucket.
+
+```python
+ACC1_ID = "123456789012"
+ACC1_LABEL = "main"
+ACC1_EMAIL = "main@example.com"
+
+# … ACC2_*, ACC3_* …
+
+DATALAKE_BUCKET = "your-unique-datalake-bucket"
+DEFAULT_REGION = "eu-central-1"
 ```
 
 ## Deployment order
