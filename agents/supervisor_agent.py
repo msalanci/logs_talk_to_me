@@ -45,6 +45,7 @@ sys.stdout.reconfigure(line_buffering=True)
 sys.stderr.reconfigure(line_buffering=True)
 
 logger = logging.getLogger(__name__)
+
 _zip_root = os.path.dirname(os.path.abspath(__file__))
 if _zip_root not in sys.path:
     sys.path.insert(0, _zip_root)
@@ -53,6 +54,7 @@ from bedrock_agentcore import BedrockAgentCoreApp
 from bedrock_agentcore.memory import MemoryClient
 from bedrock_agentcore.memory.integrations.strands.config import RetrievalConfig
 from strands import Agent
+from botocore.config import Config as BotocoreConfig
 from strands.models import BedrockModel
 from strands.agent.conversation_manager.summarizing_conversation_manager import SummarizingConversationManager
 from strands.session.s3_session_manager import S3SessionManager
@@ -74,6 +76,9 @@ from hooks.memory_hook import LTTMMemoryHook
 from plugins.supervisor_steering import SupervisorSteeringHandler
 from plugins.logging_plugin import LTTMLoggingPlugin
 import utils.agent_vars as vars
+import threading as _threading
+
+_invoke_in_flight = _threading.Lock()
 
 MEMORY_ID = os.environ.get("LTTM_MEMORY_ARN") or os.environ.get("BEDROCK_AGENTCORE_MEMORY_ID")
 print(f"[LTTM:Memory] MEMORY_ID={MEMORY_ID!r}", flush=True)
@@ -251,7 +256,13 @@ output_integrity_hook = OutputIntegrityHook(max_retries=1)
 architecture_guard = ArchitectureGuardHook(max_retries=1)
 steering_handler = SupervisorSteeringHandler()
 
-_bedrock_model_kwargs = {"model_id": vars.US_SONNET}
+# for read_timeout see: https://repost.aws/knowledge-center/bedrock-large-model-read-timeouts
+# At that point botocore raises ReadTimeoutError and the stream dies - potentional fix
+_bedrock_model_kwargs = {
+    "model_id": vars.US_SONNET, 
+    "max_tokens": 16384,
+    # "boto_client_config": BotocoreConfig(read_timeout=600),
+}
 if vars.GUARDRAIL_ID and vars.GUARDRAIL_VERSION:
     _bedrock_model_kwargs["guardrail_id"] = vars.GUARDRAIL_ID
     _bedrock_model_kwargs["guardrail_version"] = vars.GUARDRAIL_VERSION
@@ -265,6 +276,7 @@ supervisor_model = BedrockModel(**_bedrock_model_kwargs)
 _hooks = [output_integrity_hook, architecture_guard]
 if MEMORY_ID:
     _hooks.append(LTTMMemoryHook(memory_id=MEMORY_ID))
+
 
 supervisor_agent = Agent(
     model=supervisor_model,
@@ -301,17 +313,14 @@ def invoke(payload, context=None):
     AgentCore HTTP handler for POST /invocations.
     Reads payload["prompt"], runs the supervisor agent.
 
-    When LTTM_SSE_STATUS=true (default), this is a sync generator that yields
-    Server-Sent Events (SSE) event dicts in real-time. AgentCore detects the sync
-    generator via inspect.isgenerator(result) and uses _sync_stream_with_error_handling
-    to wrap each yielded dict as "data: {json}\n\n" automatically.
+    When LTTM_SSE_STATUS=true (default), this is a sync generator that yields Server-Sent Events (SSE) event dicts in real-time. 
+    AgentCore detects the sync generator via inspect.isgenerator(result) and uses _sync_stream_with_error_handling to wrap each yielded dict as "data: {json}\n\n" automatically.
     When disabled, yields {"result": answer} as a single-item generator (legacy mode).
 
     NOTE: Python does not allow mixing return-with-value and yield in the same function.
     A function with yield is always a generator. So in legacy mode we yield a single dict.
 
-    Uses stdlib threading + queue.Queue instead of asyncio to avoid async overhead
-    and potential init timeout issues with the asyncio event loop.
+    Uses stdlib threading + queue.Queue instead of asyncio to avoid async overhead and potential init timeout issues with the asyncio event loop.
     """
     import threading
     import queue as queue_mod
@@ -341,93 +350,87 @@ def invoke(payload, context=None):
         LTTMMemoryHook._skip_retrieval = False
 
     if is_enabled():
-        _reset()
 
-        if not question:
-            print("[LTTM] ERROR: no 'prompt' field in payload", flush=True)
-            emit_error("No 'prompt' field in payload.", source="supervisor")
-            emit_done()
-        else:
-            emit_status("Analyzing question...", source="supervisor")
-            if payload.get("no_memory"):
-                emit_status("--clean flag sent, AgentCore memory is ignored", source="supervisor")
+        if not _invoke_in_flight.acquire(blocking=False):
+            print(
+                "[LTTM] invoke() REJECTED: concurrent invocation on same session — "
+                "previous invocation still running",
+                flush=True,
+            )
+            yield {
+                "type": "error",
+                "step": 1,
+                "source": "supervisor",
+                "message": (
+                    "Agent is already processing a request. "
+                    "Concurrent invocations are not supported."
+                ),
+            }
+            return
 
-            def _run_agent():
-                """Run the synchronous agent in a background thread. Pushes events to queue.Queue."""
-                try:
-                    steering_handler.set_user_question(question)
-                    result = supervisor_agent(question)
-                    
-                    if hasattr(result, 'stop_reason') and result.stop_reason == "guardrail_intervened":
-                        print("[LTTM:PromptGuard] BLOCKED by managed guardrail", flush=True)
-                        emit_error(
-                            "GUARDRAIL VIOLATION: I can only help with AWS infrastructure and log analysis questions.",
-                            source="supervisor"
-                        )
-                    else:
-                        answer = str(result)
-                        print(f"[LTTM] invoke() success — answer length: {len(answer)} chars", flush=True)
+        try:
+            _reset()
 
-                        sup_usage = vars.extract_token_usage(result, "supervisor")
-                        emit_status("Summarizing results...", source="supervisor")
+            if not question:
+                print("[LTTM] ERROR: no 'prompt' field in payload", flush=True)
+                emit_error("No 'prompt' field in payload.", source="supervisor")
+                emit_done()
+            else:
+                emit_status("Analyzing question...", source="supervisor")
+                if payload.get("no_memory"):
+                    emit_status("--clean flag sent, AgentCore memory is ignored", source="supervisor")
 
-                        from utils.sse_emitter import emit_tokens
-                        if sup_usage.get("totalTokens", 0) > 0:
-                            emit_tokens(
-                                f"Tokens: supervisor={sup_usage['totalTokens']} "
-                                f"(in={sup_usage['inputTokens']}, out={sup_usage['outputTokens']})",
-                                source="supervisor",
+                def _run_agent():
+                    """Run the synchronous agent in a background thread. Pushes events to queue.Queue."""
+                    try:
+                        steering_handler.set_user_question(question)
+                        result = supervisor_agent(question)
+
+                        if hasattr(result, 'stop_reason') and result.stop_reason == "guardrail_intervened":
+                            print("[LTTM:PromptGuard] BLOCKED by managed guardrail", flush=True)
+                            emit_error(
+                                "GUARDRAIL VIOLATION: I can only help with AWS infrastructure and log analysis questions.",
+                                source="supervisor"
                             )
+                        else:
+                            answer = str(result)
+                            print(f"[LTTM] invoke() success — answer length: {len(answer)} chars", flush=True)
 
-                        emit_result(answer, source="supervisor")
-                except Exception as e:
-                    print(f"[LTTM] invoke() ERROR: {e}", flush=True)
-                    emit_error(str(e), source="supervisor")
-                finally:
-                    emit_done()
+                            sup_usage = vars.extract_token_usage(result, "supervisor")
+                            emit_status("Summarizing results...", source="supervisor")
 
-            t = threading.Thread(target=_run_agent, daemon=True)
-            t.start()
+                            from utils.sse_emitter import emit_tokens
+                            if sup_usage.get("totalTokens", 0) > 0:
+                                emit_tokens(
+                                    f"Tokens: supervisor={sup_usage['totalTokens']} "
+                                    f"(in={sup_usage['inputTokens']}, out={sup_usage['outputTokens']})",
+                                    source="supervisor",
+                                )
 
-        # Yield Server-Sent Events (SSE) event dicts as they arrive from the queue.
-        # AgentCore wraps each yielded dict as "data: {json}\n\n" automatically.
-        # queue.Queue.get(timeout=...) blocks until an item is available.
-        #
-        # Heartbeat: poll with a short timeout. On each empty poll, yield a ping
-        # event so bytes keep flowing through the SSE pipe. Without this, the
-        # supervisor's final-answer compose phase (up to ~90s of silent LLM
-        # generation after all sub-agents return) starves the stream and the
-        # intermediaries (API GW / Lambda response streaming / client) drop the
-        # connection (observed as a ~127s client cutoff while the server
-        # continues to INVOKE_END ~203s later). alexandra.sh's SSE parser has
-        # no `ping` case — it silently drops unknown types — so the user sees
-        # no extra output, only a live connection.
-        from utils.sse_emitter import emit_ping
-        q = get_queue()
-        HEARTBEAT_INTERVAL_S = 15
-        HARD_MAX_SILENT_S = 600  # safety cap: absolute max total run time
-        silent_elapsed_s = 0
-        while True:
-            try:
-                item = q.get(timeout=HEARTBEAT_INTERVAL_S)
-            except queue_mod.Empty:
-                silent_elapsed_s += HEARTBEAT_INTERVAL_S
-                if silent_elapsed_s >= HARD_MAX_SILENT_S:
-                    print(
-                        f"[LTTM] WARNING: queue.get() silent for {silent_elapsed_s}s "
-                        f"(cap {HARD_MAX_SILENT_S}s) — aborting yield loop",
-                        flush=True,
-                    )
+                            emit_result(answer, source="supervisor")
+                    except Exception as e:
+                        print(f"[LTTM] invoke() ERROR: {e}", flush=True)
+                        emit_error(str(e), source="supervisor")
+                    finally:
+                        emit_done()
+
+                t = threading.Thread(target=_run_agent, daemon=True)
+                t.start()
+
+            q = get_queue()
+            while True:
+                try:
+                    item = q.get(timeout=300)
+                except queue_mod.Empty:
+                    print("[LTTM] WARNING: queue.get() timed out after 300s", flush=True)
                     break
-                # Heartbeat to keep the HTTP body flowing.
-                emit_ping(source="supervisor")
-                # emit_ping pushes onto the same queue; next get() will return it.
-                continue
-            # Any real event resets the silent timer.
-            silent_elapsed_s = 0
-            if item is None:
-                break
-            yield item
+                if item is None:
+                    break
+                yield item
+
+        finally:
+
+            _invoke_in_flight.release()
         return
 
     if not question:
@@ -448,6 +451,18 @@ def invoke(payload, context=None):
     except Exception as e:
         print(f"[LTTM] invoke() ERROR: {e}", flush=True)
         yield {"result": f"Error: {str(e)}"}
+
+# def ask(question: str) -> str:
+#     """
+#     Local testing convenience function - Same thing as _run_agent, but locally.
+#     Runs the supervisor agent directly without SSE streaming, threading, or AgentCore entrypoint. 
+#     Usage: python -c "from supervisor_agent import ask; print(ask('show me last 5 cloudtrail events'))"
+#     Used for local testing, outside of AgentCore - normally commented
+#     Not used by AgentCore or alexandra.sh — those go through invoke().
+#     """
+#     steering_handler.set_user_question(question)
+#     result = supervisor_agent(question)
+#     return str(result)
 
 if __name__ == "__main__":
     app.run()
