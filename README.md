@@ -15,7 +15,7 @@ All versons using local script `alexandra.sh` to interconnet between user's CLI 
 
 ## LTTMv1 - Lex, Lambda, Bedrock
 
-![v1 architecture diagram](doc/images/architecture-v1.png)
+![v1 architecture diagram](docs/images/architecture-v1.png)
 
 ### Introduction to LTTMv1
 LTTMv1 was moved to sepparate branch https://github.com/msalanci/logs_talk_to_me/tree/v1
@@ -37,7 +37,7 @@ using **CloudFormation**
 
 ## LTTMv2 - API GW, Lambdas, Bedrock
 
-![v2 architecture diagram](doc/images/architecture-v2.png)
+![v2 architecture diagram](docs/images/architecture-v2.png)
 
 ### Introduction to LTTMv2
 LTTMv2 was moved to sepparate branch https://github.com/msalanci/logs_talk_to_me/tree/v2
@@ -83,7 +83,7 @@ with **CloudFormation** either:
 
 ## LTTMv3 - AgentCore, Strands Agents, Athena Data Lake
 
-![v3 architecture diagram](doc/images/architecture-v3.png)
+![v3 architecture diagram](docs/images/architecture-v3.png)
 
 ### Introduction to LTTMv3
 LTTMv3 lives on a sepparate branch https://github.com/msalanci/logs_talk_to_me/tree/v3
