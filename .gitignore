@@ -1,5 +1,57 @@
-# macOS hidden files
+# Copyright (c) 2026 Michal Salanci
+# SPDX-License-Identifier: MIT
+
+# macOS system files
 .DS_Store
 
-# notes
-notes.txt
+# Office / editor lock and temporary files
+*~$*
+
+# Python virtual environments
+venv*
+.venv/
+venv/
+env/
+ENV/
+
+# Node.js dependencies
+node_modules/
+
+# Python files
+.hypothesis/
+.pytest_cache/
+__pycache__/
+*.pyc
+
+# Project files
+agents/hooks/retired/
+tests/
+scripts/
+pytest.ini
+
+# Bedrock files
+.bedrock_agentcore/
+.bedrock_agentcore.*
+
+# Log files
+*.log
+
+# Private keys and certificates
+*.pem
+
+# Terraform / Terragrunt files
+.terraform/
+.terragrunt-cache/
+.terragrunt-tmp/
+*.tfstate
+*.tfstate.backup
+.terraform.lock.hcl
+.terraform.tfstate.lock.info
+crash.log
+crash.*.log
+# terraform/terraform.tfvars
+terraform/tests/
+terraform/lambda/*.zip
+# terraform-bootstrap/terraform.tfvars
+*.auto.tfvars
+*.tfplan

@@ -7,6 +7,7 @@ v2 - using AWS API Gateway, 3 AWS Lambda functions and Amazon Bedrock on 3 separ
 v3 - reading multiple datasources and using AI agents - **Reading multiple sources**
 
 All versons using local script `alexandra.sh` to interconnet between user's CLI and AWS
+
 ---
 
 ## LTTMv1 - Lex, Lambda, Bedrock
