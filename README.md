@@ -18,7 +18,7 @@ Instead of writing Athena SQL, clicking through multiple AWS consoles, or stitch
 
 This is the **v3** release: a full rewrite using **Amazon Bedrock AgentCore**, **Strands Agents**, **Amazon Athena**, **AWS Glue Data Catalog**, **Amazon S3**, **API Gateway**, **Cognito**, and a multi-account AWS log data lake.
 
-> Earlier versions (`v1` using Amazon Lex and a single Lambda, `v2` using API Gateway with three Lambdas) live on older branches of the original repository and are documented there. This version uses a supervisor/sub-agent architecture running in Bedrock AgentCore Runtime.
+> Earlier versions are [v1](https://github.com/msalanci/logs_talk_to_me/tree/v1) using **Amazon Lex** and a **single lambda function** and [v2](https://github.com/msalanci/logs_talk_to_me/tree/v2) using **API Gateway** with **three lambda functions**) live on older branches of the original repository and are documented there. This version uses a supervisor/sub-agent architecture running in Bedrock AgentCore Runtime.
 
 ## Contents
 
