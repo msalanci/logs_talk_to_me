@@ -1,9 +1,9 @@
 <!-- Copyright (c) 2026 Michal Salanci -->
 <!-- SPDX-License-Identifier: MIT -->
 
-# Logs Talk To Me
+# Cloud Intelligence Agency (Logs talk to me v3)
 
-**Logs Talk To Me** (**LTTM**) is a conversational interface for AWS infrastructure investigations.
+**loud Intelligence Agency (Logs talk to me v3)** is a conversational interface for AWS infrastructure investigations.
 
 Instead of writing Athena SQL, clicking through multiple AWS consoles, or stitching together `aws cli` commands across accounts, you ask a question in plain English and the system gathers evidence from logs, APIs, and security services.
 
