@@ -159,7 +159,7 @@ When "total" or "all accounts": aggregate across all three accounts.
 """
 
 cur_agent = Agent(
-    model=vars.US_SONNET,
+    model=vars.SUBAGENT_MODEL,
     tools=[run_athena_query],
     hooks=[SQLValidatorHook(), SQLRewriteHook(default_limit=20)],
     system_prompt=CUR_SYSTEM_PROMPT,

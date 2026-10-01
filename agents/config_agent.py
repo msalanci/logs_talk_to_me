@@ -125,7 +125,7 @@ Use DISTINCT on resourceid to deduplicate when listing resources.
 """
 
 config_agent = Agent(
-    model=vars.US_SONNET,
+    model=vars.SUBAGENT_MODEL,
     tools=[run_athena_query],
     hooks=[SQLValidatorHook(), SQLRewriteHook(default_limit=20)],  # COMMENTED DUE TO REFACTORING TO 1 SUMMARIZER — removed ResultSizeGuardHook()
     system_prompt=CONFIG_SYSTEM_PROMPT,

@@ -149,7 +149,7 @@ def list_log_groups() -> list[str]:
 
 
 cloudwatch_agent = Agent(
-    model=vars.US_SONNET,
+    model=vars.SUBAGENT_MODEL,
     tools=[run_athena_query, list_log_groups],
     hooks=[SQLValidatorHook(), SQLRewriteHook(default_limit=20)],
     system_prompt=CLOUDWATCH_SYSTEM_PROMPT,

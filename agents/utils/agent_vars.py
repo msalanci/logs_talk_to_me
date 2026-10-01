@@ -37,10 +37,9 @@ ACCOUNTS = {
 }
 
 # LLM Models
-US_SONNET = "us.anthropic.claude-sonnet-4-20250514-v1:0"  # Claude Sonnet 4 in us-west-2
-# US_NOVA_PRO = "us.amazon.nova-pro-v1:0"                 # Amazon Nova Pro in us-west-2
-# US_NOVA_LITE = "us.amazon.nova-lite-v1:0"               # Amazon Nova Lite in us-west-2
-US_HAIKU = "us.anthropic.claude-haiku-4-5-20251001-v1:0"  # Claude Haiku 4.5 in us-west-2
+SUPERVISOR_MODEL = "us.anthropic.claude-opus-4-6-v1"             # Claude Opus 4.6 in us-west-2
+SUBAGENT_MODEL = "us.anthropic.claude-opus-4-6-v1"               # Claude Opus 4.6 in us-west-2
+JUDGE_MODEL = "us.anthropic.claude-haiku-4-5-20251001-v1:0"      # Claude Haiku 4.5 in us-west-2
 
 # Defaults
 DEFAULT_ACCOUNT = ACC1_ID
@@ -138,7 +137,7 @@ INTERNAL_NAMES = [
     "INSPECTOR_SYSTEM_PROMPT", "HEALTH_SYSTEM_PROMPT",
     "ACCESS_ANALYZER_SYSTEM_PROMPT", "ORGANIZATIONS_SYSTEM_PROMPT", "QUOTAS_SYSTEM_PROMPT","ROUTING_JUDGE_PROMPT", 
     "INTEGRITY_JUDGE_PROMPT","JUDGE_SYSTEM_PROMPT", "ACC1_ID", "ACC1_LABEL", "ACC1_EMAIL", "ACC2_ID", "ACC2_LABEL", 
-    "ACC2_EMAIL", "ACC3_ID", "ACC3_LABEL", "ACC3_EMAIL", "US_SONNET", "US_HAIKU", "DEFAULT_ACCOUNT", 
+    "ACC2_EMAIL", "ACC3_ID", "ACC3_LABEL", "ACC3_EMAIL", "SUPERVISOR_MODEL", "SUBAGENT_MODEL", "JUDGE_MODEL", "DEFAULT_ACCOUNT", 
     "DEFAULT_REGION", "DATALAKE_BUCKET", "CROSS_ACCOUNT_ROLE_TEMPLATE", "BLOCKED_SQL_KEYWORDS", "MAX_RESULT_CHARS",
     "GUARDRAIL_ID", "GUARDRAIL_VERSION", "INTERNAL_NAMES",    
     # Removed from table, due to false positives: "ACCOUNTS", "TABLES"

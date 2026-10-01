@@ -117,7 +117,7 @@ The AWS Health API requires a Business or Enterprise Support plan. Accounts on B
 """
 
 health_agent = Agent(
-    model=vars.US_SONNET,
+    model=vars.SUBAGENT_MODEL,
     tools=[query_health_api],
     hooks=[],
     system_prompt=HEALTH_SYSTEM_PROMPT,

@@ -98,7 +98,7 @@ Partition keys: account_id (string — '{vars.ACC1_ID}', '{vars.ACC2_ID}', '{var
 """
 
 cloudtrail_agent = Agent(
-    model=vars.US_SONNET,
+    model=vars.SUBAGENT_MODEL,
     tools=[run_athena_query],
     hooks=[SQLValidatorHook(), SQLRewriteHook(verbose_columns=["requestparameters", "responseelements"], default_limit=20, verbose_limit=5)],  # COMMENTED DUE TO REFACTORING TO 1 SUMMARIZER — removed ResultSizeGuardHook()
     system_prompt=CLOUDTRAIL_SYSTEM_PROMPT,

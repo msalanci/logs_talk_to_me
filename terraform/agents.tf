@@ -51,11 +51,9 @@ data "aws_iam_policy_document" "agent_permissions" {
     effect  = "Allow"
     actions = ["bedrock:InvokeModel", "bedrock:InvokeModelWithResponseStream"]
     resources = [
-      "arn:aws:bedrock:us-west-2::foundation-model/anthropic.claude-sonnet-4-20250514-v1:0",
-      "arn:aws:bedrock:us-west-2::foundation-model/anthropic.claude-haiku-4-5-20251001-v1:0",
-      "arn:aws:bedrock:*::foundation-model/anthropic.claude-sonnet-4-20250514-v1:0",
+      "arn:aws:bedrock:*::foundation-model/anthropic.claude-opus-4-6-v1",
+      "arn:aws:bedrock:us-west-2:960319001022:inference-profile/us.anthropic.claude-opus-4-6-v1",
       "arn:aws:bedrock:*::foundation-model/anthropic.claude-haiku-4-5-20251001-v1:0",
-      "arn:aws:bedrock:us-west-2:960319001022:inference-profile/us.anthropic.claude-sonnet-4-20250514-v1:0",
       "arn:aws:bedrock:us-west-2:960319001022:inference-profile/us.anthropic.claude-haiku-4-5-20251001-v1:0",
     ]
   }

@@ -90,7 +90,7 @@ If the user says "all accounts" or "across all accounts", query all three.
 """
 
 access_analyzer_agent = Agent(
-    model=vars.US_SONNET,
+    model=vars.SUBAGENT_MODEL,
     tools=[query_access_analyzer_api],
     hooks=[],
     system_prompt=ACCESS_ANALYZER_SYSTEM_PROMPT,

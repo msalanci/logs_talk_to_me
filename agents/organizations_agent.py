@@ -99,7 +99,7 @@ Organizations is a global service. Calls are routed through us-east-1. The regio
 """
 
 organizations_agent = Agent(
-    model=vars.US_SONNET,
+    model=vars.SUBAGENT_MODEL,
     tools=[query_organizations_api],
     hooks=[],
     system_prompt=ORGANIZATIONS_SYSTEM_PROMPT,

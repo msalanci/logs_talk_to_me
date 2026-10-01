@@ -212,7 +212,7 @@ If the user says "all accounts" or "across all accounts", query all three.
 """
 
 guardduty_agent = Agent(
-    model=vars.US_SONNET,
+    model=vars.SUBAGENT_MODEL,
     tools=[query_guardduty_findings, run_athena_query],
     hooks=[SQLValidatorHook(), SQLRewriteHook(default_limit=20)],
     system_prompt=GUARDDUTY_SYSTEM_PROMPT,

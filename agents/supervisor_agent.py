@@ -259,7 +259,7 @@ steering_handler = SupervisorSteeringHandler()
 # for read_timeout see: https://repost.aws/knowledge-center/bedrock-large-model-read-timeouts
 # At that point botocore raises ReadTimeoutError and the stream dies - potentional fix
 _bedrock_model_kwargs = {
-    "model_id": vars.US_SONNET, 
+    "model_id": vars.SUPERVISOR_MODEL, 
     "max_tokens": 16384,
     # "boto_client_config": BotocoreConfig(read_timeout=600),
 }

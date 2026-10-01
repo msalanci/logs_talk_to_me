@@ -127,7 +127,7 @@ If the user says "all regions", query both eu-central-1 and us-west-2.
 """
 
 flowlogs_agent = Agent(
-    model=vars.US_SONNET,
+    model=vars.SUBAGENT_MODEL,
     tools=[run_athena_query],
     hooks=[SQLValidatorHook(), SQLRewriteHook(default_limit=20)],
     system_prompt=FLOWLOGS_SYSTEM_PROMPT,

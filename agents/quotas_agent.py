@@ -110,7 +110,7 @@ The Service Quotas API is regional. Default region is eu-central-1. Pass a diffe
 """
 
 quotas_agent = Agent(
-    model=vars.US_SONNET,
+    model=vars.SUBAGENT_MODEL,
     tools=[query_quotas_api],
     hooks=[],
     system_prompt=QUOTAS_SYSTEM_PROMPT,

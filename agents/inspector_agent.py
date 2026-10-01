@@ -145,7 +145,7 @@ If the user says "all regions", query eu-central-1, us-east-1, and us-west-2.
 """
 
 inspector_agent = Agent(
-    model=vars.US_SONNET,
+    model=vars.SUBAGENT_MODEL,
     tools=[query_inspector_findings],
     hooks=[],
     system_prompt=INSPECTOR_SYSTEM_PROMPT,

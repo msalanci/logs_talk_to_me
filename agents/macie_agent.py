@@ -139,7 +139,7 @@ If the user says "all regions", query eu-central-1, us-east-1, and us-west-2.
 """
 
 macie_agent = Agent(
-    model=vars.US_SONNET,
+    model=vars.SUBAGENT_MODEL,
     tools=[query_macie_findings],
     hooks=[],
     system_prompt=MACIE_SYSTEM_PROMPT,

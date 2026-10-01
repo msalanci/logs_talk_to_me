@@ -192,7 +192,7 @@ class SupervisorSteeringHandler(SteeringHandler):
         try:
             judge = Agent(
                 # model=vars.US_NOVA_LITE,
-                model=vars.US_HAIKU,
+                model=vars.JUDGE_MODEL,
                 system_prompt=ROUTING_JUDGE_PROMPT,
             )
             verdict = str(judge(
@@ -258,7 +258,7 @@ class SupervisorSteeringHandler(SteeringHandler):
         try:
             judge = Agent(
                 # model=vars.US_NOVA_LITE,
-                model=vars.US_HAIKU,
+                model=vars.JUDGE_MODEL,
                 system_prompt=INTEGRITY_JUDGE_PROMPT,
             )
             # Truncate for judge context window
