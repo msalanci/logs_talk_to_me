@@ -1,0 +1,9 @@
+# Copyright (c) 2025-2026 Michal Salanci
+# SPDX-License-Identifier: MIT
+
+# backend.hcl.example — the remote state's bucket and its Region, for terraform init -backend-config=backend.hcl.
+# Copy it to backend.hcl (git-ignored) and set the bucket terraform-bootstrap/ created, with its backend_bucket and
+# backend_region values.
+
+bucket = "my-lttm-tf-backend"
+region = "eu-central-1"

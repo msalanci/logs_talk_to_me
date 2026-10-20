@@ -1,0 +1,52 @@
+# Copyright (c) 2025-2026 Michal Salanci
+# SPDX-License-Identifier: MIT
+
+# terraform.tfvars.example — the values this project needs, with placeholders.
+#
+#   cp terraform.tfvars.example terraform.tfvars    # then put in your own values
+#
+# terraform.tfvars is git-ignored (.gitignore): it holds account IDs, account emails and
+# the first Cognito user's temporary password. Every variable is described in variables.tf;
+# the ones with a default there can be left out.
+
+# The three accounts: main hosts the lake and the agents; dev and prod ship their logs to it
+main_account_id = "111111111111"
+dev_account_id  = "222222222222"
+prod_account_id = "333333333333"
+
+dev_account_email  = "dev-account@example.com"
+prod_account_email = "prod-account@example.com"
+
+project_region   = "eu-central-1" # the lake, Athena, API Gateway, Cognito
+global_region    = "us-east-1"    # CUR and other global services
+agentcore_region = "us-west-2"    # the AgentCore runtime, its memory and evaluation; Runtime V2 is offered here
+
+# AWS CLI profiles for the three accounts
+main_profile = "default"
+dev_profile  = "dev-cli"
+prod_profile = "prod-cli"
+
+prefix = "your-unique-datalake-bucket" # the lake bucket's name
+
+# Route 53 hosted zones whose DNS query logs go to the lake: zone ID => domain name
+# Two of these zone IDs are also in agents/utils/agent_vars.py (DNS_EXAMPLE_ZONE_IDS) - make sure to update that file as well
+hosted_zone_ids = {
+  # "Z0123456789ABCDEFGHIJ" = "example.com"
+}
+
+# The first Cognito user; alexandra.sh asks for a new password at the first login
+cognito_initial_user          = "admin"
+cognito_initial_email         = "you@example.com"
+cognito_initial_temp_password = "Change-me-1!" # 12+ characters: upper, lower, number, symbol
+
+memory_retention_days = 7
+
+# The AgentCore runtimes, from `agentcore launch` (agents/.bedrock_agentcore.yaml). Leave the
+# placeholders (variables.tf) until the first launch, then set the stream runtime's ARN and apply again.
+# cli_stream_runtime_arn = "arn:aws:bedrock-agentcore:us-west-2:111111111111:runtime/lttm_supervisor_stream-XXXXXXXXXX"
+
+# Optional, with defaults in variables.tf:
+# evaluation_sampling_percentage        = 10           # online evaluation; 0 = off
+# athena_results_retention_days         = 30           # days before S3 deletes Athena query results
+# agent_models = ["us.anthropic.claude-opus-4-6-v1", "us.anthropic.claude-haiku-4-5-20251001-v1:0"]   # the models in agents/utils/agent_vars.py
+# athena_bytes_scanned_cutoff_per_query = 10737418240  # 10 GiB: Athena cancels a query that would scan more

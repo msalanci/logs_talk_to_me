@@ -1,57 +1,26 @@
-# Copyright (c) 2026 Michal Salanci
+# Copyright (c) 2025-2026 Michal Salanci
 # SPDX-License-Identifier: MIT
 
-# macOS system files
-.DS_Store
+# private terraform files
+*.tfvars
+!*.tfvars.example
+*.tfstate
+*.tfstate.*
+*.tfplan
+backend.hcl
+.terraform/
+terraform/tests
 
-# Office / editor lock and temporary files
-*~$*
+# AgentCore launch config and its build
+agents/.bedrock_agentcore.yaml
+agents/.bedrock_agentcore/
 
-# Python virtual environments
-venv*
-.venv/
-venv/
-env/
-ENV/
+# Shared constants with account IDs; agent_vars.py.example is the published template
+agents/utils/agent_vars.py
 
-# Node.js dependencies
+# Build outputs
+terraform/lambda/*.zip
 node_modules/
-
-# Python files
-.hypothesis/
-.pytest_cache/
 __pycache__/
 *.pyc
-
-# Project files
-agents/hooks/retired/
-tests/
-scripts/
-pytest.ini
-
-# Bedrock files
-.bedrock_agentcore/
-.bedrock_agentcore.*
-
-# Log files
-*.log
-
-# Private keys and certificates
-*.pem
-
-# Terraform / Terragrunt files
-.terraform/
-.terragrunt-cache/
-.terragrunt-tmp/
-*.tfstate
-*.tfstate.backup
-.terraform.lock.hcl
-.terraform.tfstate.lock.info
-crash.log
-crash.*.log
-# terraform/terraform.tfvars
-terraform/tests/
-terraform/lambda/*.zip
-# terraform-bootstrap/terraform.tfvars
-*.auto.tfvars
-*.tfplan
+.DS_Store

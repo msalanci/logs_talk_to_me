@@ -1,0 +1,13 @@
+# Copyright (c) 2025-2026 Michal Salanci
+# SPDX-License-Identifier: MIT
+
+# terraform.tfvars.example — the values the bootstrap root needs, with placeholders.
+#
+#   cp terraform.tfvars.example terraform.tfvars    # then put in your own values
+#
+# terraform.tfvars is git-ignored (code/.gitignore). Put the same bucket name in terraform/backend.tf:
+# its backend block cannot read variables.
+
+backend_bucket         = "your-unique-tf-state-bucket"
+backend_region         = "eu-central-1"
+backend_region_profile = "default"

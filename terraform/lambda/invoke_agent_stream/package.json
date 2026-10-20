@@ -1,0 +1,9 @@
+{
+  "name": "invoke-agent-stream",
+  "version": "1.0.0",
+  "license": "MIT",
+  "type": "module",
+  "dependencies": {
+    "@aws-sdk/client-bedrock-agentcore": "^3.800.0"
+  }
+}

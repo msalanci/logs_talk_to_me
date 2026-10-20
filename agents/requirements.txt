@@ -1,0 +1,133 @@
+# Copyright (c) 2025-2026 Michal Salanci
+# SPDX-License-Identifier: MIT
+
+# Every version is pinned to the tested dependency bundle for CPython 3.12 on aarch64-manylinux2014,
+# the AgentCore runtime's platform; 112 packages.
+# Open ranges let a rebuild pull untested versions. To upgrade, change a version
+# here on purpose, deploy, and test. Any change to this file makes `agentcore launch` rebuild
+# the dependency bundle (the deploy tool compares a hash of this file).
+
+strands-agents==1.39.0
+
+bedrock-agentcore==1.9.0
+
+boto3==1.43.6
+
+# AWS Distro for OpenTelemetry — ships traces, metrics, and structured logs
+# to CloudWatch. Populates the otel-rt-logs stream and GenAI Observability dashboard.
+# AgentCore auto-instruments via `opentelemetry-instrument` at container startup.
+# Installed: its spans in aws/spans are what the online evaluation scores.
+# It does not cause the 30 s init timeout: the bundle's launcher shebangs do, and
+# fix_shebangs.sh repairs them. From 0.18 the urllib3/requests/http instrumentations are off under
+# AgentCore; from 0.19 the content records in otel-rt-logs change form.
+aws-opentelemetry-distro==0.21.0
+
+# Everything the four packages above pull in, pinned to the same bundle.
+annotated-types==0.7.0
+anyio==4.13.0
+asgiref==3.11.1
+attrs==26.1.0
+botocore==1.43.6
+cachetools==6.2.4
+certifi==2026.4.22
+cffi==2.0.0
+charset-normalizer==3.4.7
+click==8.3.3
+cryptography==48.0.0
+docstring-parser==0.18.0
+googleapis-common-protos==1.75.0
+grpcio==1.80.0
+h11==0.16.0
+httpcore==1.0.9
+httpx==0.28.1
+httpx-sse==0.4.3
+idna==3.14
+jmespath==1.1.0
+jsonschema==4.26.0
+jsonschema-specifications==2025.9.1
+mcp==1.27.1
+opentelemetry-api==1.44.0
+opentelemetry-distro==0.65b0
+opentelemetry-exporter-otlp-proto-common==1.44.0
+opentelemetry-exporter-otlp-proto-grpc==1.44.0
+opentelemetry-exporter-otlp-proto-http==1.44.0
+opentelemetry-instrumentation==0.65b0
+opentelemetry-instrumentation-aio-pika==0.65b0
+opentelemetry-instrumentation-aiohttp-client==0.65b0
+opentelemetry-instrumentation-aiokafka==0.65b0
+opentelemetry-instrumentation-aiopg==0.65b0
+opentelemetry-instrumentation-asgi==0.65b0
+opentelemetry-instrumentation-asyncpg==0.65b0
+opentelemetry-instrumentation-aws-lambda==0.65b0
+opentelemetry-instrumentation-boto3sqs==0.65b0
+opentelemetry-instrumentation-botocore==0.65b0
+opentelemetry-instrumentation-cassandra==0.65b0
+opentelemetry-instrumentation-celery==0.65b0
+opentelemetry-instrumentation-confluent-kafka==0.65b0
+opentelemetry-instrumentation-dbapi==0.65b0
+opentelemetry-instrumentation-django==0.65b0
+opentelemetry-instrumentation-falcon==0.65b0
+opentelemetry-instrumentation-fastapi==0.65b0
+opentelemetry-instrumentation-flask==0.65b0
+opentelemetry-instrumentation-grpc==0.65b0
+opentelemetry-instrumentation-httpx==0.65b0
+opentelemetry-instrumentation-jinja2==0.65b0
+opentelemetry-instrumentation-kafka-python==0.65b0
+opentelemetry-instrumentation-logging==0.65b0
+opentelemetry-instrumentation-mysql==0.65b0
+opentelemetry-instrumentation-mysqlclient==0.65b0
+opentelemetry-instrumentation-pika==0.65b0
+opentelemetry-instrumentation-psycopg2==0.65b0
+opentelemetry-instrumentation-pymemcache==0.65b0
+opentelemetry-instrumentation-pymongo==0.65b0
+opentelemetry-instrumentation-pymysql==0.65b0
+opentelemetry-instrumentation-pyramid==0.65b0
+opentelemetry-instrumentation-redis==0.65b0
+opentelemetry-instrumentation-remoulade==0.65b0
+opentelemetry-instrumentation-requests==0.65b0
+opentelemetry-instrumentation-sqlalchemy==0.65b0
+opentelemetry-instrumentation-sqlite3==0.65b0
+opentelemetry-instrumentation-starlette==0.65b0
+opentelemetry-instrumentation-system-metrics==0.65b0
+opentelemetry-instrumentation-threading==0.65b0
+opentelemetry-instrumentation-tornado==0.65b0
+opentelemetry-instrumentation-tortoiseorm==0.65b0
+opentelemetry-instrumentation-urllib==0.65b0
+opentelemetry-instrumentation-urllib3==0.65b0
+opentelemetry-instrumentation-wsgi==0.65b0
+opentelemetry-processor-baggage==0.65b0
+opentelemetry-propagator-aws-xray==1.0.2
+opentelemetry-propagator-b3==1.44.0
+opentelemetry-propagator-jaeger==1.44.0
+opentelemetry-propagator-ot-trace==0.65b0
+opentelemetry-proto==1.44.0
+opentelemetry-sdk==1.44.0
+opentelemetry-sdk-extension-aws==2.1.0
+opentelemetry-semantic-conventions==0.65b0
+opentelemetry-util-http==0.65b0
+packaging==26.2
+protobuf==6.33.5
+psutil==7.2.2
+pycparser==3.0
+pydantic==2.13.4
+pydantic-core==2.46.4
+pydantic-settings==2.14.1
+pyjwt==2.12.1
+python-dateutil==2.9.0.post0
+python-dotenv==1.2.2
+python-multipart==0.0.28
+pyyaml==6.0.3
+referencing==0.37.0
+requests==2.33.1
+rpds-py==0.30.0
+s3transfer==0.17.0
+six==1.17.0
+sse-starlette==3.4.2
+starlette==1.0.0
+typing-extensions==4.15.0
+typing-inspection==0.4.2
+urllib3==2.7.0
+uvicorn==0.46.0
+watchdog==6.0.0
+websockets==16.0
+wrapt==1.17.3

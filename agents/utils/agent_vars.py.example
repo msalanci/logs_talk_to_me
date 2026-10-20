@@ -1,0 +1,428 @@
+# Copyright (c) 2025-2026 Michal Salanci
+# SPDX-License-Identifier: MIT
+
+"""
+agent_vars.py — Centralized variables for all LTTM agents and tools.
+
+The values the agent and tool files share live here.
+To change any value: edit this file, redeploy (agentcore launch).
+
+IMPORTANT INFORMATION FOR USER - make your own copy and fill it in:
+    cp agents/utils/agent_vars.py.example agents/utils/agent_vars.py
+Then change every value marked "FILL IN" (search for it):
+    - AWS Accounts: the IDs, labels and emails of your three accounts
+    - DATALAKE_BUCKET: the same name as `prefix` in terraform/terraform.tfvars
+    - USED_REGIONS, IDC_REGION, WORKMAIL_REGION: the regions your accounts use
+    - CLOUDTRAIL_LAKE_START, CUR_FIRST_BILLING_PERIOD: where your lake's data starts
+    - DNS_EXAMPLE_ZONE_IDS: two of your Route 53 hosted zone IDs, if you log DNS queries
+Everything else matches the Terraform in this repository: change it only together with the Terraform.
+agent_vars.py itself is git-ignored, so your values stay out of the repository.
+
+Import in any agent or tool:
+    import utils.agent_vars as vars
+    # then use: vars.ACC1_ID, vars.ACC2_ID, vars.ACCOUNTS, etc.
+
+The values, and why they are what they are:
+- ACCOUNTS maps each account ID to its label and email.
+- QUERY_TOOLS are the supervisor's sub-agent tools, the query_* wrappers. The integrity hook and the steering judge
+  check only these tools' results, so a new sub-agent goes here, and into the supervisor's SUPERVISOR_TOOLS.
+- CACHE_NAMES are the names the user sees on the cache lines under the 💰 line, by receipt caller; CACHE_TTL is
+  explained in cached_system_prompt.
+- ATHENA_WORKGROUP is in DEFAULT_REGION.
+- GROUPED_ROW_LIMIT: a query whose own SELECT has a GROUP BY returns one row per group, a total each, so
+  SQLRewriteHook lets it return up to this many rows (a list of events stays at 20), and asks Athena for one more,
+  so that format_athena_rows can say when there were more groups than it shows.
+- MORE_ROWS_KEY: a plain list (no GROUP BY of its own) stays at the hook's 20 rows, and SQLRewriteHook asks Athena
+  for one more. When that row comes back, the hook keeps the first 20 and puts this key on the tool result, with
+  the number kept; agent_wrapper._extract_raw_results passes it on, and format_athena_rows says that these are not
+  all the rows. Strands sends a tool result's content, ID and status to the model, never this key, so the
+  sub-agent sees the same 20 rows.
+- SESSION_ID_PATTERN: a session ID is a UUID in lower case, as the CLI makes them. AgentCore Runtime takes 33 to
+  256 characters, and AgentCore Memory at most 100 letters, digits, "-" and "_". Memory also finds a session's
+  summary by its ID as a namespace prefix, next to the facts in "default", so IDs of different lengths, or one
+  starting with "default", would mix sessions' memory. The CLI (alexandra.sh) and the stream shim check the same
+  rule.
+- Regions: every sub-agent that chooses regions takes them from here. USED_REGIONS are the regions the accounts
+  actually use; the other regions get only a few AWS-service events a month. Every CloudTrail question searches
+  CLOUDTRAIL_REGIONS, unless the user names a region. Sign-ins through the global sign-in page are logged in
+  us-east-1, us-east-2, eu-north-1 or, when signing in from Asia-Pacific, ap-southeast-2, so SIGNIN_REGIONS adds
+  ap-southeast-2. IDC_REGION (IAM Identity Center) and WORKMAIL_REGION (Amazon WorkMail webmail) are the home
+  regions of the two non-console sign-ins in the main account (same three event names).
+- The other services' *_REGIONS lists say where each one runs, which is where its sub-agent looks when the user
+  names no region; each matches the Terraform resources. CONFIG_REGIONS: the Config recorders, all three accounts;
+  CONFIG_GLOBAL_REGION is Config's awsRegion for global resources (IAM), recorded by the home region's recorder.
+  GUARDDUTY_REGIONS: the detectors, us-west-2 in the main account only. MACIE_REGIONS, INSPECTOR_REGIONS: enabled
+  in all three accounts. ACCESS_ANALYZER_REGIONS: the ORGANIZATION analyzers, in the main account.
+  CLOUDWATCH_REGIONS: the log subscriptions, dev and prod in eu-central-1 only. FLOWLOGS_REGIONS: the VPC flow
+  logs, us-west-2 in the main account only.
+- *_REGIONS_BY_ACCOUNT hold the same per account, where the accounts differ; the lists above are their union. The
+  lines written by code into an empty answer name them, so no answer claims a region an account does not cover.
+- Where a data source starts, for the same lines: CLOUDTRAIL_LAKE_START, the first CloudTrail files in the lake
+  (cloudtrail/, organization trail); CUR_FIRST_BILLING_PERIOD, the first billing period of the cost and usage
+  report; HEALTH_RETENTION_DAYS, how long AWS Health keeps events ("up to the 90-day limit", AWS Health User
+  Guide, organizational view).
+- ACCESS_ANALYZER_NAME: the ORGANIZATION analyzer in the main account, one per region in ACCESS_ANALYZER_REGIONS.
+  It covers all three accounts; terraform/access_analyzer.tf creates it.
+- GLOBAL_SERVICE_REGION: the region the tools call AWS Organizations and AWS Health in. Quotas of global services
+  (QUOTAS_GLOBAL_SERVICES) exist only there, in us-east-1; Service Quotas answers NoSuchResource elsewhere.
+- REGION_NAMES: region names a user may type instead of the code. SQLValidatorHook uses them to see which regions
+  a question names.
+- DATE_BLANKS: the prompts hold the blanks {TODAY}, {YEAR}, {MONTH}, {DAY} and {PREV_YEAR}, filled per question
+  (with_current_date). A date computed once at import would go stale in a session that runs past midnight UTC,
+  and on AgentCore V2 (one snapshot per deploy) would stay at the deploy day. Every sub-agent fills the blanks
+  when it is built for a question, and the supervisor refreshes its prompt for every question.
+- TABLES and BLOCKED_SQL_KEYWORDS are the SQL guardrails of sql_validator_hook.py.
+- AGENT_LOG_GROUP_PREFIX: the log groups of AgentCore runtimes, LTTM's own included: they hold every user's
+  questions, the generated SQL and the internal names. terraform/cloudwatch.tf stops sending them to the lake; the
+  CloudWatch agent neither lists nor queries them (lowercase, compared with lowercased names).
+- DNS_EXAMPLE_ZONE_IDS: two Route 53 hosted zones whose DNS query logs reach the lake. The CloudWatch agent's
+  DNS examples name them; the agent still finds every zone's log group with list_log_groups().
+- MAX_RESULT_CHARS: a size limit for results before they reach the supervisor; nothing in agents/ applies it.
+- GUARDRAIL_ID and GUARDRAIL_VERSION come from LTTM_GUARDRAIL_ID and LTTM_GUARDRAIL_VERSION, set from the
+  terraform outputs guardrail_id and guardrail_version after `terraform apply`. When both are set, every user
+  question is checked against the managed guardrail (prompt injection + topic denial) once, when it arrives
+  (utils/prompt_guard.py). AGENTCORE_REGION is the region of the AgentCore runtime and its memory; code inside the
+  runtime prefers AWS_REGION. GUARDRAIL_REGION: lttm-prompt-guard lives next to the runtime
+  (terraform/guardrails.tf).
+- INTERNAL_NAMES: the names ArchitectureGuardHook redacts from the model's output; add new tool, hook and plugin
+  names here when they are made. The guard matches names in any case and inside words, so every name needs a "_"
+  or two capitals: a plain word such as "coverage" turned "full governance coverage" into "full governance
+  [internal]", and the bare word "controltower" would match aws-controltower-BaselineCloudTrail,
+  aws-controltower/CloudTrailLogs and controltower.amazonaws.com in real answers. Left out for false positives:
+  "ACCOUNTS" and "TABLES", and ".py" and "DEFAULT_REGION", which matched tracebacks, handler file names and
+  AWS_DEFAULT_REGION in real log data.
+"""
+
+import os
+import re
+from datetime import datetime, timezone
+
+import utils.request_context as request_context
+
+ACC1_ID = "<PUT_ACCOUNT-1_NUMBER_HERE>"   # FILL IN, example: "111111111111" (the main account: lake, API, agents)
+ACC1_LABEL = "main"                        # FILL IN if you want another name
+ACC1_EMAIL = "<PUT_ACCOUNT-1_EMAIL_HERE>"  # FILL IN, example: "main@example.com"
+
+ACC2_ID = "<PUT_ACCOUNT-2_NUMBER_HERE>"   # FILL IN, example: "222222222222" (dev)
+ACC2_LABEL = "dev"                         # FILL IN if you want another name
+ACC2_EMAIL = "<PUT_ACCOUNT-2_EMAIL_HERE>"  # FILL IN
+
+ACC3_ID = "<PUT_ACCOUNT-3_NUMBER_HERE>"   # FILL IN, example: "333333333333" (prod)
+ACC3_LABEL = "prod"                        # FILL IN if you want another name
+ACC3_EMAIL = "<PUT_ACCOUNT-3_EMAIL_HERE>"  # FILL IN
+
+ACCOUNTS = {
+    ACC1_ID: {"label": ACC1_LABEL, "email": ACC1_EMAIL},
+    ACC2_ID: {"label": ACC2_LABEL, "email": ACC2_EMAIL},
+    ACC3_ID: {"label": ACC3_LABEL, "email": ACC3_EMAIL},
+}
+
+# Models are also specified in terraform/variables.tf (agent_models) - make sure to update them as well
+SUPERVISOR_MODEL = "us.anthropic.claude-opus-4-6-v1"
+SUBAGENT_MODEL = "us.anthropic.claude-opus-4-6-v1"
+JUDGE_MODEL = "us.anthropic.claude-haiku-4-5-20251001-v1:0"
+
+QUERY_TOOLS = frozenset({
+    "query_cloudtrail", "query_cloudwatch", "query_config",
+    "query_cur", "query_flowlogs", "query_guardduty",
+    "query_access_analyzer", "query_health",
+    "query_organizations", "query_quotas",
+    "query_macie", "query_inspector",
+    "query_controltower",
+})
+
+
+def build_bedrock_model(model_id: str, **settings):
+    """A new BedrockModel for one agent, without the CountTokens call before every model call.
+
+    Strands 1.39 calls Bedrock CountTokens before each model call unless told not to. The agent role may
+    not call it, so every call failed and fell back to a local estimate that nothing reads. From Strands
+    1.40 the call is off by default. Strands is imported here, not at the top: code that needs only this
+    file's constants imports it without Strands.
+
+    Args:
+        model_id: The Bedrock model or inference profile ID, such as SUPERVISOR_MODEL.
+        **settings: Further BedrockModel settings, such as max_tokens.
+
+    Returns:
+        The BedrockModel.
+    """
+    from strands.models import BedrockModel
+    return BedrockModel(model_id=model_id, use_native_token_count=False, **settings)
+
+
+CACHE_TTL = "1h"
+CACHE_TTL_MINUTES = {"5m": 5, "1h": 60}[CACHE_TTL]
+CACHE_NAMES = {"supervisor": "Supervisor", "cloudtrail": "CloudTrail agent", "cloudwatch": "CloudWatch agent",
+               "guardduty": "GuardDuty agent"}
+
+
+def cached_system_prompt(text: str) -> list[dict]:
+    """A system prompt as content blocks, with a cache point after it.
+
+    Bedrock reads a request as tools, then system, then messages, so the point covers the agent's tool descriptions
+    and its whole prompt: the same for every question of a day (the prompt carries the date). Below the model's
+    minimum, 4,096 tokens on Opus 4.6, Bedrock ignores the point and charges nothing extra. Used by the supervisor,
+    CloudTrail, CloudWatch and GuardDuty, whose prompts were measured against that minimum.
+
+    CACHE_TTL is the lifetime of a cache entry. Bedrock offers 5 minutes and 1 hour, and every read starts it again.
+    1 hour is the owner's choice: a write costs 2 x the input price instead of 1.25 x, and it pays off from the
+    second question in an hour with gaps longer than 5 minutes. Checked on Opus 4.6: Bedrock reported the write with
+    ttl 1h, and the next call read it.
+
+    Args:
+        text: The prompt, with its date blanks filled in.
+
+    Returns:
+        [{"text": text}, {"cachePoint": {"type": "default", "ttl": CACHE_TTL}}].
+    """
+    return [{"text": text}, {"cachePoint": {"type": "default", "ttl": CACHE_TTL}}]
+
+
+DEFAULT_REGION = "eu-central-1"
+DATALAKE_BUCKET = "<YOUR_BUCKET_NAME>"   # FILL IN: the same name as prefix in terraform/terraform.tfvars
+ATHENA_WORKGROUP = "lttm-athena-workgroup"
+
+GROUPED_ROW_LIMIT = 100
+
+MORE_ROWS_KEY = "lttm_more_rows"
+
+SESSION_ID_PATTERN = re.compile(r"[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}")
+
+# LTTM itself uses the first three (the lake, global services, the AgentCore runtime); add every other region with
+# activity in your accounts.
+USED_REGIONS = ["eu-central-1", "us-east-1", "us-west-2"]   # FILL IN: add the regions your accounts use
+
+# Every region the Glue table lttm_logs.cloudtrail_logs can see: the 17 regions enabled in the main
+# account (prod also has the opt-in regions eu-central-2, eu-south-1 and eu-south-2 enabled; no
+# activity there). Keep equal to projection.region.values in terraform/athena.tf — a region missing
+# there is invisible to Athena. Searched only when the user names a region outside USED_REGIONS.
+LAKE_REGIONS = [
+    "eu-central-1", "us-east-1", "us-west-2", "eu-west-1", "eu-west-2", "eu-north-1",
+    "ap-southeast-1", "ap-northeast-1", "ap-south-1", "sa-east-1", "ca-central-1", "us-east-2",
+    "us-west-1", "ap-southeast-2", "ap-northeast-2", "ap-northeast-3", "eu-west-3",
+]
+
+CLOUDTRAIL_REGIONS = USED_REGIONS
+SIGNIN_REGIONS = USED_REGIONS + ["ap-southeast-2"]
+
+IDC_REGION = "eu-central-1"        # FILL IN: the home region of IAM Identity Center, if you use it
+WORKMAIL_REGION = "eu-west-1"      # FILL IN: the region of your Amazon WorkMail organization, if you use it
+
+CONFIG_REGIONS = ["eu-central-1", "us-east-1", "us-west-2"]
+CONFIG_GLOBAL_REGION = "global"
+GUARDDUTY_REGIONS = ["eu-central-1", "us-west-2"]
+MACIE_REGIONS = ["eu-central-1", "us-east-1", "us-west-2"]
+INSPECTOR_REGIONS = ["eu-central-1", "us-east-1", "us-west-2"]
+ACCESS_ANALYZER_REGIONS = ["eu-central-1", "us-east-1", "us-west-2"]
+CLOUDWATCH_REGIONS = ["eu-central-1", "us-east-1", "us-west-2"]
+FLOWLOGS_REGIONS = ["eu-central-1", "us-west-2"]
+
+GUARDDUTY_REGIONS_BY_ACCOUNT = {ACC1_ID: ["eu-central-1", "us-west-2"], ACC2_ID: ["eu-central-1"], ACC3_ID: ["eu-central-1"]}
+FLOWLOGS_REGIONS_BY_ACCOUNT = {ACC1_ID: ["eu-central-1", "us-west-2"], ACC2_ID: ["eu-central-1"], ACC3_ID: ["eu-central-1"]}
+CLOUDWATCH_REGIONS_BY_ACCOUNT = {ACC1_ID: ["eu-central-1", "us-east-1", "us-west-2"], ACC2_ID: ["eu-central-1"],
+                                 ACC3_ID: ["eu-central-1"]}
+
+# FILL IN: the first day of CloudTrail files in your lake per account, YYYY-MM-DD (the day of your first terraform
+# apply, unless you copied older history in). Keep a real date: the Control Tower tool reads it as one.
+CLOUDTRAIL_LAKE_START = {ACC1_ID: "2026-01-01", ACC2_ID: "2026-01-01", ACC3_ID: "2026-01-01"}
+CUR_FIRST_BILLING_PERIOD = "2026-01"   # FILL IN: the first billing period (YYYY-MM) of your CUR export
+HEALTH_RETENTION_DAYS = 90
+
+
+def coverage(by_account: dict) -> str:
+    """Where a service runs, in words, from a *_REGIONS_BY_ACCOUNT dict:
+    "eu-central-1 (main, dev, prod) and us-west-2 (main)".
+
+    Args:
+        by_account: The regions of each account ID.
+
+    Returns:
+        Each region once, in first-seen order, with the labels of the accounts that cover it.
+    """
+    regions = []
+    for account, names in by_account.items():
+        for region in names:
+            if region not in regions:
+                regions.append(region)
+    parts = [f"{region} ({', '.join(ACCOUNTS[a]['label'] for a in by_account if region in by_account[a])})"
+             for region in regions]
+    return parts[0] if len(parts) == 1 else ", ".join(parts[:-1]) + " and " + parts[-1]
+
+ACCESS_ANALYZER_NAME = "lttm-org-analyzer"
+
+# Control Tower: the landing zone's home region. Its API answers only there, and CloudTrail logs
+# Control Tower's API calls and lifecycle events there (main account). Kept equal to var.project_region.
+CONTROLTOWER_REGION = "eu-central-1"
+
+GLOBAL_SERVICE_REGION = "us-east-1"
+QUOTAS_GLOBAL_SERVICES = ["iam", "cloudfront", "route53"]
+
+REGION_NAMES = {
+    "n. virginia": "us-east-1", "virginia": "us-east-1", "ohio": "us-east-2",
+    "n. california": "us-west-1", "california": "us-west-1", "oregon": "us-west-2",
+    "canada": "ca-central-1", "frankfurt": "eu-central-1", "ireland": "eu-west-1",
+    "london": "eu-west-2", "paris": "eu-west-3", "stockholm": "eu-north-1",
+    "tokyo": "ap-northeast-1", "seoul": "ap-northeast-2", "osaka": "ap-northeast-3",
+    "mumbai": "ap-south-1", "singapore": "ap-southeast-1", "sydney": "ap-southeast-2",
+    "sao paulo": "sa-east-1", "são paulo": "sa-east-1",
+}
+
+
+def sql_list(values: list) -> str:
+    """Render values as the inside of a SQL IN list: ['a', 'b'] -> "'a','b'".
+
+    Args:
+        values: The values; each is quoted as it is, so none may hold a quote.
+
+    Returns:
+        The quoted values, separated by commas; "" for none.
+    """
+    return ",".join(f"'{value}'" for value in values)
+
+DATE_BLANKS = ("TODAY", "YEAR", "MONTH", "DAY", "PREV_YEAR")
+
+
+def _utcnow() -> datetime:
+    """The current time in UTC.
+
+    Args:
+        None.
+
+    Returns:
+        A timezone-aware datetime.
+    """
+    return datetime.now(timezone.utc)
+
+
+def with_current_date(prompt: str, now: datetime | None = None) -> str:
+    """Fill the date blanks of a prompt with the current UTC date (or with `now`).
+
+    Args:
+        prompt: The prompt, with blanks such as {TODAY} (DATE_BLANKS).
+        now: The time to use; None for now, in UTC.
+
+    Returns:
+        The prompt with every blank filled in.
+    """
+    now = now or _utcnow()
+    values = {"TODAY": now.strftime("%Y-%m-%d"), "YEAR": now.strftime("%Y"), "MONTH": now.strftime("%m"),
+              "DAY": now.strftime("%d"), "PREV_YEAR": str(now.year - 1)}
+    for blank, value in values.items():
+        prompt = prompt.replace("{" + blank + "}", value)
+    return prompt
+
+## exactly what glue creates
+## if new table is added to glue, it must be hardcoded here
+TABLES = {
+    "lttm_logs.cloudtrail_logs": ["account_id", "region", "year", "month", "day"],
+    "lttm_logs.cloudwatch_logs": ["log_group", "account_id", "year", "month"],
+    "lttm_logs.config_logs": ["account_id", "year", "month", "day"],
+    "lttm_logs.config_snapshot": ["account_id", "year", "month", "day"],
+    "lttm_logs.cur_data": ["billing_period"],
+    "lttm_logs.flowlogs": ["aws_account_id", "aws_region", "year", "month", "day"],
+    "lttm_logs.guardduty_findings": ["account_id", "year", "month", "day"],
+}
+
+BLOCKED_SQL_KEYWORDS = ["DROP", "DELETE", "UPDATE", "INSERT", "ALTER", "TRUNCATE"]
+
+AGENT_LOG_GROUP_PREFIX = "/aws/bedrock-agentcore/"
+# The runtime's telemetry in us-west-2 holds the same: every trace (aws/spans), Application
+# Signals, and the toolkit's observability group. Exact names, lowercase; kept in step with
+# var.uswest2_telemetry_log_groups in terraform/variables.tf.
+AGENT_LOG_GROUPS = ("aws/spans", "/aws/application-signals/data", "agentcore-observability")
+
+# FILL IN: two of your Route 53 hosted zone IDs, if you log DNS queries; the CloudWatch agent's DNS examples name them.
+# Zone IDs are also specified in terraform/terraform.tfvars (hosted_zone_ids) - make sure to update them as well
+DNS_EXAMPLE_ZONE_IDS = ("Z0123456789EXAMPLE", "Z0987654321EXAMPLE")
+
+MAX_RESULT_CHARS = 50000
+
+GUARDRAIL_ID = os.environ.get("LTTM_GUARDRAIL_ID")
+GUARDRAIL_VERSION = os.environ.get("LTTM_GUARDRAIL_VERSION")
+AGENTCORE_REGION = "us-west-2"
+GUARDRAIL_REGION = AGENTCORE_REGION
+
+def extract_token_usage(result, agent_name: str) -> dict:
+    """Log the token usage of the agent call that returned `result`, and add it to the question's receipt.
+
+    Reads result.metrics.latest_agent_invocation.usage: this call only. accumulated_usage would be the agent's
+    total since it was built, and the supervisor lives for the whole session, so a question would show every
+    earlier one added in. Each model call's cache write or read goes on the receipt too, for the lines under the
+    💰 line: Strands keeps one usage per call (its "cycle"); without per-call figures, the invocation's sums.
+
+    Args:
+        result: The AgentResult returned by agent(question).
+        agent_name: Human-readable name for logging (e.g., "cloudtrail", "supervisor").
+
+    Returns:
+        Dict with inputTokens, outputTokens, totalTokens, cacheReadInputTokens and cacheWriteInputTokens (all
+        int, 0 on failure). Prints one [LTTM:Tokens] line.
+    """
+    usage = {"inputTokens": 0, "outputTokens": 0, "totalTokens": 0,
+             "cacheReadInputTokens": 0, "cacheWriteInputTokens": 0}
+    try:
+        invocation = result.metrics.latest_agent_invocation
+        if invocation is not None:
+            for key in usage:
+                usage[key] = int(invocation.usage.get(key) or 0)
+        print(
+            f"[LTTM:Tokens] {agent_name} — "
+            f"input={usage['inputTokens']}, "
+            f"output={usage['outputTokens']}, "
+            f"total={usage['totalTokens']}, "
+            f"cache_read={usage['cacheReadInputTokens']}, "
+            f"cache_write={usage['cacheWriteInputTokens']}",
+            flush=True,
+        )
+        request_context.current().receipt.add_tokens(agent_name, usage)
+        cycles = (getattr(invocation, "cycles", None) or []) if invocation is not None else []
+        writes = [int(c.usage.get("cacheWriteInputTokens") or 0) for c in cycles] or [usage["cacheWriteInputTokens"]]
+        reads = [int(c.usage.get("cacheReadInputTokens") or 0) for c in cycles] or [usage["cacheReadInputTokens"]]
+        request_context.current().receipt.add_cache(agent_name, [w for w in writes if w], [r for r in reads if r])
+    except Exception as e:
+        print(f"[LTTM:Tokens] {agent_name} — extraction failed: {e}", flush=True)
+    return usage
+
+INTERNAL_NAMES = [
+    "query_cloudtrail", "query_cloudwatch", "query_config", "query_access_analyzer", "query_health", "query_cur",
+    "query_organizations", "query_quotas", "query_flowlogs","query_guardduty","run_athena_query", "run_subagent", 
+    "query_access_analyzer_api", "query_health_api", "query_organizations_api", "query_quotas_api", 
+    "query_guardduty_findings", "query_macie", "query_macie_findings", "query_inspector", "query_inspector_findings",
+    "SQLValidatorHook", "SQLRewriteHook", "ResultSizeGuardHook",  "OutputIntegrityHook", "ArchitectureGuardHook", 
+    "SupervisorSteeringHandler", "LTTMLoggingPlugin",  "LTTMMemoryHook", "_extract_raw_result", "_extract_raw_results",
+    "format_raw_results", "count_line", "finding_counts", "emit_status", "combined_count_line", "region_blocks",
+    "accounts_total", "_tool_calls", "_newest_question", "NO_FINDINGS", "SEVERITY_ORDER", "query_guardduty_history",
+    "guardduty_history_tool", "SAMPLE_NOTE", "MAX_FINDINGS", "ATHENA_WORKGROUP", "_with_log_group_counts", "with_current_date", "_date_the_supervisor", "DATE_BLANKS", "AGENTCORE_REGION", "load_session_history", "_apply_context", "_context_blocks", "HISTORY_MESSAGES", "memory_hook",
+    "emit_result", "emit_error", "emit_done", "BedrockModel", "BedrockAgentCoreApp", "build_bedrock_model",
+
+    "sql_validator_hook", "sql_rewrite_hook", "result_size_guard_hook", "output_integrity_hook", 
+    "architecture_guard_hook", "supervisor_steering", "logging_plugin", "athena_tool", "access_analyzer_tool", 
+    "health_tool", "organizations_tool", "quotas_tool", "guardduty_tool", "macie_tool", "inspector_tool", 
+    "agent_wrapper", "agent_vars", "sse_emitter", "supervisor_agent", "cloudtrail_agent", "cloudwatch_agent",
+    "config_agent", "cur_agent", "flowlogs_agent", "guardduty_agent", "macie_agent", "inspector_agent", "health_agent", 
+    "organizations_agent", "quotas_agent", "access_analyzer_agent",
+    
+    "SUPERVISOR_SYSTEM_PROMPT", "CLOUDTRAIL_SYSTEM_PROMPT","CLOUDWATCH_SYSTEM_PROMPT", "CONFIG_SYSTEM_PROMPT","CUR_SYSTEM_PROMPT", 
+    "FLOWLOGS_SYSTEM_PROMPT", "GUARDDUTY_SYSTEM_PROMPT", "MACIE_SYSTEM_PROMPT", "INSPECTOR_SYSTEM_PROMPT", "HEALTH_SYSTEM_PROMPT",
+    "ACCESS_ANALYZER_SYSTEM_PROMPT", "ORGANIZATIONS_SYSTEM_PROMPT", "QUOTAS_SYSTEM_PROMPT","ROUTING_JUDGE_PROMPT", "DATALAKE_BUCKET",
+    "INTEGRITY_JUDGE_PROMPT","JUDGE_SYSTEM_PROMPT", "ACC1_ID", "ACC1_LABEL", "ACC1_EMAIL", "ACC2_ID", "ACC2_LABEL", "ACC2_EMAIL", 
+    "ACC3_ID", "ACC3_LABEL", "ACC3_EMAIL", "SUPERVISOR_MODEL", "SUBAGENT_MODEL", "JUDGE_MODEL", 
+    "CROSS_ACCOUNT_ROLE_TEMPLATE", "BLOCKED_SQL_KEYWORDS", "MAX_RESULT_CHARS", "GUARDRAIL_ID", "GUARDRAIL_VERSION", "GUARDRAIL_REGION",
+    "prompt_guard", "question_allowed", "_guide_feedback", "CHECK_PREFIX", "MAX_CHECKED_RESULT_CHARS",
+    "MAX_CHECKED_ANSWER_CHARS", "discovery_tools", "INTERNAL_NAMES",
+    "USED_REGIONS", "LAKE_REGIONS", "CLOUDTRAIL_REGIONS", "SIGNIN_REGIONS", "IDC_REGION", "WORKMAIL_REGION",
+    "REGION_NAMES", "sql_list", "CONFIG_REGIONS", "CONFIG_GLOBAL_REGION", "GUARDDUTY_REGIONS",
+    "GUARDDUTY_REGIONS_BY_ACCOUNT", "FLOWLOGS_REGIONS_BY_ACCOUNT", "CLOUDWATCH_REGIONS_BY_ACCOUNT",
+    "CLOUDTRAIL_LAKE_START", "CUR_FIRST_BILLING_PERIOD", "HEALTH_RETENTION_DAYS", "empty_note", "MACIE_REGIONS", "INSPECTOR_REGIONS",
+    "ACCESS_ANALYZER_REGIONS", "ACCESS_ANALYZER_NAME", "CLOUDWATCH_REGIONS", "FLOWLOGS_REGIONS", "GLOBAL_SERVICE_REGION",
+    "QUOTAS_GLOBAL_SERVICES",
+    "request_context", "_supervisor_for", "_new_supervisor_session", "SupervisorSession", "SUPERVISOR_TOOLS",
+    "sql_text", "outer_limit", "SUMMARY_TOPICS", "RECORD_TYPE_KEY", "PROBING_PATTERNS", "PROBE_ANSWER", "is_probing",
+    "cloudtrail_provenance", "with_source_file", "label_rows", "lttm_source_file", "untrusted_text", "one_line_args",
+    "one_line_all", "is_agent_log_group", "AGENT_LOG_GROUP_PREFIX", "AGENT_LOG_GROUPS", "log_groups_named",
+    "_cached_prompt",
+    "cached_system_prompt", "CACHE_TTL", "CACHE_NAMES", "add_cache", "cache_lines",
+    "query_controltower", "query_controltower_api", "query_controltower_events", "controltower_agent",
+    "controltower_tool", "controltower_events_tool", "CONTROLTOWER_SYSTEM_PROMPT", "CONTROLTOWER_REGION",
+]
