@@ -26,7 +26,7 @@ This is the **v3** release, a full rewrite. It uses:
 > Earlier versions live on older branches of the original repository and are documented there:
 > - [v1](https://github.com/msalanci/logs_talk_to_me/tree/v1) used **Amazon Lex** and a **single Lambda function**.
 > - [v2](https://github.com/msalanci/logs_talk_to_me/tree/v2) used **API Gateway** with **three Lambda functions**.
-> - [v3] (this version) uses a supervisor/sub-agent architecture running in **Bedrock AgentCore Runtime**, utilizing **Bedrock AgentCore memory**.
+> - v3 (this version) uses a supervisor/sub-agent architecture running in **Bedrock AgentCore Runtime**, utilizing **Bedrock AgentCore memory**.
 ## Contents
 
 - [What LTTM can answer](#what-lttm-can-answer)
