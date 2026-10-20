@@ -24,13 +24,9 @@ This is the **v3** release, a full rewrite. It uses:
 - a multi-account AWS log data lake.
 
 > Earlier versions live on older branches of the original repository and are documented there:
-> - [v1](https://github.com/msalanci/logs_talk_to_me/tree/v1) used **Amazon Lex** and a **single Lambda function**;
+> - [v1](https://github.com/msalanci/logs_talk_to_me/tree/v1) used **Amazon Lex** and a **single Lambda function**.
 > - [v2](https://github.com/msalanci/logs_talk_to_me/tree/v2) used **API Gateway** with **three Lambda functions**.
->
-> This version uses a supervisor/sub-agent architecture running in Bedrock AgentCore Runtime.
-
-The changes made since the September 2026 version of this README are listed in [What changed since September 2026](#what-changed-since-september-2026).
-
+> - [v3] (this version) uses a supervisor/sub-agent architecture running in **Bedrock AgentCore Runtime**, utilizing **Bedrock AgentCore memory**.
 ## Contents
 
 - [What LTTM can answer](#what-lttm-can-answer)
@@ -54,7 +50,6 @@ The changes made since the September 2026 version of this README are listed in [
 - [Redeploying after a change](#redeploying-after-a-change)
 - [Troubleshooting](#troubleshooting)
 - [Usage examples](#usage-examples)
-- [What changed since September 2026](#what-changed-since-september-2026)
 - [License](#license)
 
 ## What LTTM can answer
@@ -64,7 +59,7 @@ LTTM has one **supervisor agent** and **thirteen** specialized sub-agents, all o
 | Domain          | Data source                    | Good for                                                                                                     |
 | --------------- | ------------------------------ | ------------------------------------------------------------------------------------------------------------ |
 | CloudTrail      | Athena over S3 data lake       | Who did what, API calls, IAM activity, read-only vs write events, sign-ins (console, IAM Identity Center, WorkMail) |
-| CloudWatch      | Athena over S3 data lake       | Lambda/application logs, log group errors, Route 53 Resolver DNS queries                                     |
+| CloudWatch      | Athena over S3 data lake       | Lambda/application logs, log group errors, DNS queries to your Route 53 hosted zones                         |
 | Config          | Athena over S3 data lake       | Resource changes, configuration history, the daily resource inventory                                        |
 | CUR             | Athena over S3 data lake       | Cost, spend trends, expensive services and resources                                                         |
 | VPC Flow Logs   | Athena over S3 data lake       | Network traffic, rejected packets, source and destination IPs                                                |
@@ -127,7 +122,7 @@ API Gateway REST API (eu-central-1)
         ↓
 Node.js 24 stream Lambda ("the shim": checks the request, keeps the conversation list)
         ↓ SigV4 InvokeAgentRuntime
-Amazon Bedrock AgentCore Runtime (us-west-2, platform V2)
+Amazon Bedrock AgentCore Runtime (us-west-2; platform V2 from step 11)
         ↓ Bedrock guardrail check on the question
 Supervisor agent
         ↓ one tool call per sub-agent
@@ -171,7 +166,7 @@ What keeps the lake complete:
 - **GuardDuty findings from us-west-2** are forwarded to eu-central-1 by an EventBridge rule, so they are archived too.
 - **AWS Config delivers a snapshot of every delivery channel** once a day, at 00:01 UTC, through EventBridge Scheduler. It is filed under the day before.
 - **The Config Lambdas** write every capture and creation time in one UTC format.
-- **The `lttm-flowlog-enforcer` Lambda** adds a VPC flow log to every new VPC: on `CreateVpc` and every 15 minutes.
+- **The `lttm-flowlog-enforcer` Lambda** adds a VPC flow log to every new VPC: every 15 minutes in every account and region of the flow log table, and at once on a `CreateVpc` in the main account's project region.
 - **The `lttm-lake-check` Lambda** runs Athena checks on the day before, every day at 02:30 UTC. It checks the Config times, account IDs, duplicates and snapshot deliveries, and emails you only when something is wrong.
 - **An SNS email** goes out when any file lands in a Firehose error folder of the lake.
 
@@ -305,7 +300,7 @@ LTTM does not rely on a system prompt alone. The rule is:
 | `SupervisorSteeringHandler`: checks in code (they act) | Each one sends the model **one** correction made by code:<br>• **routing table:** a DNS question sent to Flow Logs is pointed to CloudWatch;<br>• **money check:** an answer that states an amount no cost result holds;<br>• **answer check:** an answer that claims "no drift" for controls Control Tower does not check, adds a cause to an empty result, or invents why an event happened. |
 | `SupervisorSteeringHandler`: LLM judges (they only log) | Claude Haiku 4.5 judges routing before each tool call, and checks the final answer against the tool results. They run in **shadow mode**: they log `SHADOW GUIDE …` and never block a call or rewrite an answer. |
 | Raw result extraction       | Sub-agents return raw tool results; the supervisor is the only summarizer                        |
-| Online evaluation           | AgentCore Evaluations scores a 10% sample of idle sessions (Helpfulness, Correctness, Faithfulness, GoalSuccessRate, ToolSelectionAccuracy). It measures quality over time, and never changes an answer. |
+| Online evaluation           | AgentCore Evaluations scores 10% of the questions (`evaluation_sampling_percentage`; Helpfulness, Correctness, Faithfulness, GoalSuccessRate, ToolSelectionAccuracy). It measures quality over time, and never changes an answer. |
 
 ![Architecture diagram](docs/images/flow.png)
 
@@ -374,7 +369,9 @@ Lines you may see:
 - **💰** is the cost of this question alone: every agent, the judges, and the bytes Athena scanned.
 - **📝** shows that an agent's instructions were saved to the prompt cache for the next 60 minutes.
 - **♻️** shows that they were read from it.
-- **⏳** shows that the session's `--clean` flag or `LTTM_TEST_RUN=1` is in effect.
+- **⏳** is a status line: what the agent is doing now, and notices such as the session's `--clean` flag or `LTTM_TEST_RUN=1`.
+- **🛡️** shows that a safety layer acted, for example *"Architecture probe detected"*.
+- **❌** is an error.
 
 Optional waiting-screen arcade game (`lttm_game.py`, next to `alexandra.sh`) while the agent works:
 
@@ -413,7 +410,7 @@ Environment variables:
 
 | Variable                                     | Meaning                                                                                  |
 | -------------------------------------------- | ---------------------------------------------------------------------------------------- |
-| `LTTM_STREAM_API_URL`                        | The `/ask` endpoint (`terraform output -raw lttm_stream_api_url`). Required.             |
+| `LTTM_STREAM_API_URL`                        | The `/ask` endpoint; read from `terraform output -raw lttm_stream_api_url` when not set   |
 | `COGNITO_USER_POOL_ID`, `COGNITO_CLIENT_ID`  | Read from `terraform output` in `terraform/` when not set                                |
 | `COGNITO_REGION`                             | Default `eu-central-1`                                                                    |
 | `LTTM_TEST_RUN=1`                            | The question is answered, but nothing is saved to memory                                 |
@@ -448,7 +445,7 @@ Environment variables:
 │   ├── agents.tf               # Agent IAM role + AgentCore Memory and its strategies
 │   ├── guardrails.tf           # Bedrock guardrail
 │   ├── evaluations.tf          # AgentCore online evaluation
-│   ├── apigw.tf                # REST API, four Cognito-authorized resources
+│   ├── apigw.tf                # REST API, five Cognito-authorized resources
 │   ├── lambda.tf               # The five API Lambdas
 │   ├── cognito.tf              # User pool, app client, first user
 │   ├── dynamodb.tf             # Conversations table (30-day TTL)
@@ -493,7 +490,7 @@ Athena queries these Glue tables in the database `lttm_logs`. They all use parti
 | Table                | Partition keys                                         | Notes                                                                 |
 | -------------------- | ------------------------------------------------------ | --------------------------------------------------------------------- |
 | `cloudtrail_logs`    | `account_id`, `region`, `year`, `month`, `day`         | Management events only (read and write), no data events. Deduplicate on `eventid`. |
-| `cloudwatch_logs`    | `log_group`, `account_id`, `year`, `month`             | Includes Route 53 Resolver query logs; LTTM's own runtime logs are not ingested |
+| `cloudwatch_logs`    | `log_group`, `account_id`, `year`, `month`             | Includes the DNS query logs of your Route 53 hosted zones; LTTM's own runtime logs are not ingested |
 | `config_logs`        | `account_id`, `year`, `month`, `day`                   | Every configuration change, times in UTC                              |
 | `config_snapshot`    | `account_id`, `year`, `month`, `day`                   | The daily inventory; "now" is the newest snapshot day                 |
 | `cur_data`           | `billing_period`                                       | Monthly CUR export                                                    |
@@ -632,13 +629,16 @@ The `agentcore` CLI used to deploy the runtime comes from `bedrock-agentcore-sta
 
 ```text
 eu-central-1  → the data lake, Athena, Glue, API Gateway, Lambda, Cognito, DynamoDB
-us-west-2     → Bedrock AgentCore Runtime (platform V2), AgentCore Memory, Evaluations, the guardrail, the models
+us-west-2     → Bedrock AgentCore Runtime, AgentCore Memory, Evaluations, the guardrail, the models
 us-east-1     → global services (CUR export, Route 53 query logging, IAM quotas, AWS Organizations events)
 ```
 
+AWS Config, Macie, Inspector, IAM Access Analyzer and a CloudWatch Logs stream to the lake also run in us-east-1 and
+us-west-2, and GuardDuty and VPC flow logs in us-west-2 (the per-service region lists in `agent_vars.py`).
+
 The two-region layout is deliberate:
 - **AgentCore is now available in eu-central-1, but Runtime platform V2 is not,** so the runtime stays in us-west-2.
-- **You can change regions** in `terraform/terraform.tfvars` and `agents/utils/agent_vars.py`. Update every service dependency consistently.
+- **You can change regions** in `terraform/terraform.tfvars` and `agents/utils/agent_vars.py`. Update every service dependency consistently. If `project_region` changes, also export `COGNITO_REGION` for the CLI: it defaults to `eu-central-1`.
 
 ## Development notes
 
@@ -666,7 +666,6 @@ Terraform builds the Lambda zip files from the source directories with `archive_
 *.tfvars  (except *.tfvars.example)   # account IDs, emails, the first Cognito password
 *.tfstate, *.tfstate.*, *.tfplan, backend.hcl
 .terraform/
-terraform/tests                       # the tests live outside this repository
 agents/.bedrock_agentcore.yaml        # the AgentCore CLI writes this per deployment
 agents/.bedrock_agentcore/            # the AgentCore CLI's build directory
 agents/utils/agent_vars.py            # your account IDs, emails and regions (copy agent_vars.py.example)
@@ -686,6 +685,7 @@ python3 -m compileall -q agents terraform/lambda
 for f in invoke_agent_stream list_conversations delete_conversation health_check list_services; do
   node --check terraform/lambda/$f/index.mjs
 done
+terraform -chdir=terraform init -backend=false   # once, in a fresh clone
 terraform -chdir=terraform validate
 ./fix_shebangs.sh --check        # after agentcore configure: is the dependency bundle ready?
 ```
@@ -705,7 +705,7 @@ Set the state bucket name, region, and CLI profile used to create it.
 ```hcl
 backend_bucket         = "your-unique-tf-state-bucket"
 backend_region         = "eu-central-1"
-backend_region_profile = "main"
+backend_region_profile = "default"
 ```
 
 Then set the same bucket and region in **`terraform/backend.hcl`**. Terraform's S3 backend block cannot use variables, so `terraform init` reads them from this file (`terraform init -backend-config=backend.hcl`):
@@ -728,8 +728,6 @@ cp terraform/terraform.tfvars.example terraform/terraform.tfvars
 Then fill in your values:
 
 ```hcl
-project_name = "lttm-cia"
-
 main_account_id = "111111111111"
 dev_account_id  = "222222222222"
 prod_account_id = "333333333333"
@@ -741,9 +739,9 @@ project_region   = "eu-central-1"
 global_region    = "us-east-1"
 agentcore_region = "us-west-2"
 
-main_profile = "main"
-dev_profile  = "dev"
-prod_profile = "prod"
+main_profile = "default"
+dev_profile  = "dev-cli"
+prod_profile = "prod-cli"
 
 prefix = "your-unique-datalake-bucket"   # the lake bucket's name
 
@@ -765,13 +763,18 @@ Optional variables, with their defaults in `variables.tf`:
 | Variable                                | Default            | Meaning                                                 |
 | --------------------------------------- | ------------------ | ------------------------------------------------------- |
 | `lake_alert_email`                      | the Cognito email  | Where the lake's error-folder alerts go                 |
-| `evaluation_sampling_percentage`        | `10`               | Share of sessions scored by online evaluation; `0` = off |
+| `evaluation_sampling_percentage`        | `10`               | Share of questions scored by online evaluation; `0` = off |
 | `athena_bytes_scanned_cutoff_per_query` | `10737418240`      | The Athena cap per query (10 GiB)                       |
 | `athena_results_retention_days`         | `30`               | When Athena query results expire                        |
 | `stream_timeout_seconds`                | `900`              | The `/ask` integration and stream Lambda timeout        |
 | `agent_models`                          | Opus 4.6, Haiku 4.5 | The inference profiles the agent role may call; keep it equal to the models in `agent_vars.py` |
 | `config_snapshot_schedule`              | `cron(1 0 * * ? *)` | When the daily Config snapshots are delivered (UTC)    |
 | `config_home_name`                      | `default`          | Name of the Config recorder in the dev and prod home region |
+| `config_snapshot_frequency`             | `null` (off)       | Config's own periodic snapshot delivery (`One_Hour` … `TwentyFour_Hours`); off by default, as the daily snapshot comes from `config_snapshot_schedule` |
+| `lake_check_schedule`                   | `cron(30 2 * * ? *)` | When the daily lake check runs (UTC); keep it after 02:00 UTC, when the day's snapshot is filed |
+| `online_evaluators`                     | five built-in evaluators | The evaluators online evaluation runs on each scored question |
+| `main_log_groups_not_ingested`          | `["aws-controltower/CloudTrailLogs"]` | Main-account log groups in the project region that are not sent to the lake |
+| `uswest2_telemetry_log_groups`          | LTTM's three telemetry groups | us-west-2 log groups of LTTM's own telemetry that are not sent to the lake; keep equal to `AGENT_LOG_GROUPS` in `agent_vars.py` |
 
 ### 3. `agents/utils/agent_vars.py`
 
@@ -808,7 +811,7 @@ Copy every new or changed line from the example into your copy, and keep your ow
 
 The order matters:
 - AgentCore needs the IAM role, the memory and the guardrail that Terraform creates.
-- The stream Lambda's permission needs the runtime's ARN, which exists only after the first launch.
+- The stream Lambda's permission needs the runtime's ARN, which exists only after the first deploy.
 
 ### 1. Bootstrap Terraform state
 
@@ -855,7 +858,7 @@ Then confirm the email **"AWS Notification - Subscription Confirmation"** from `
 terraform output -raw guardrail_id
 terraform output -raw guardrail_version
 terraform output -raw lttm_memory_id
-aws iam get-role --role-name lttm-agent-role --query Role.Arn --output text --profile main
+aws iam get-role --role-name lttm-agent-role --query Role.Arn --output text --profile default
 ```
 
 ### 4. Create and activate a Python virtual environment
@@ -884,7 +887,7 @@ Deactivate with `deactivate` when done.
 
 ### 5. Configure the agent: generate `.bedrock_agentcore.yaml`
 
-Before you can launch, the starter toolkit needs a config file: which entrypoint to package, which IAM role to use, which region to target. Run `agentcore configure` from inside `agents/` and answer the prompts.
+Before you can deploy, the starter toolkit needs a config file: which entrypoint to package, which IAM role to use, which region to target. Run `agentcore configure` from inside `agents/` and answer the prompts.
 
 ```bash
 cd agents
@@ -896,7 +899,7 @@ agentcore configure \
   --runtime PYTHON_3_12 \
   --region us-west-2 \
   --protocol HTTP \
-  --execution-role "$(aws iam get-role --role-name lttm-agent-role --query Role.Arn --output text --profile main)" \
+  --execution-role "$(aws iam get-role --role-name lttm-agent-role --query Role.Arn --output text --profile default)" \
   --requirements-file requirements.txt
 ```
 
@@ -945,9 +948,9 @@ cd ..                            # repository root, venv active
 **What `--prebuild` does:**
 - It builds the bundle locally the way `agentcore deploy` would.
 - It rewrites the launchers to a bare `python3`.
-- It leaves the bundle's hash alone, so the launch reuses the repaired bundle.
+- It leaves the bundle's hash alone, so the deploy reuses the repaired bundle.
 
-`./fix_shebangs.sh --check` reports whether the next launch will reuse the bundle (exit 0) or needs a rebuild (exit 1).
+`./fix_shebangs.sh --check` reports whether the next deploy will reuse the bundle (exit 0) or needs a rebuild (exit 1).
 
 ### 7. `agentcore deploy`: create the runtime
 
@@ -1044,11 +1047,11 @@ Check these fields in particular. They are the ones that silently break LTTM if 
 | `aws.region`                                      | `us-west-2` (or whatever you set `agentcore_region` to) | Must match the region of the runtime that the stream Lambda calls.                                                                                  |
 | `aws.network_configuration.network_mode`          | `PUBLIC`                                                | VPC mode is supported but needs extra endpoints; the stock config assumes `PUBLIC`.                                                                 |
 | `aws.protocol_configuration.server_protocol`      | `HTTP`                                                  | The stream Lambda talks to the runtime over HTTP.                                                                                                   |
-| `memory.mode`                                     | `STM_AND_LTM`                                           | Disabling long-term memory turns off the episodic and semantic strategies.                                                                          |
+| `memory.mode`                                     | `STM_AND_LTM`                                           | Disabling long-term memory turns off the semantic, summary and episodic strategies.                                                                          |
 | `memory.memory_id` / `memory_arn` / `memory_name` | Terraform's memory (not empty, not `null`)              | Empty values silently disable AgentCore Memory, and follow-up questions lose context.                                                               |
 | `bedrock_agentcore.agent_id` / `agent_arn`        | real IDs (not empty, not `null`)                        | A missing ARN means Terraform's Lambda permission points at a different runtime.                                                                    |
 
-If any of those fields are empty, `null` or placeholder strings, fill them in. The IDs come from `terraform output` and from the Bedrock AgentCore console. Then launch again, exactly as in step 7.
+If any of those fields are empty, `null` or placeholder strings, fill them in. The IDs come from `terraform output` and from the Bedrock AgentCore console. Then deploy again, exactly as in step 7.
 
 ### 9. Second Terraform apply: wire the real runtime ARN
 
@@ -1112,8 +1115,8 @@ rm platform-v2.json        # it holds the runtime's environment variables
 ```
 
 Then wait again (step 10): the switch takes a few minutes.
-- **Do it within 7 days of a launch.** The update re-sends the code bundle's location, and the toolkit's bucket deletes the bundle 7 days after a deploy.
-- **Later launches keep V2.** The same command with `"V1"` switches back.
+- **Do it within 7 days of a deploy.** The update re-sends the code bundle's location, and the toolkit's bucket deletes the bundle 7 days after a deploy.
+- **Later deploys keep V2.** The same command with `"V1"` switches back.
 
 ### 12. Export the CLI variables and smoke-test
 
@@ -1157,8 +1160,8 @@ Then wait for `DEFAULT` to serve the new version ([step 10](#10-wait-for-the-new
 | Symptom                                                                     | Cause and fix                                                                                         |
 | --------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------- |
 | `ModuleNotFoundError: No module named 'utils.agent_vars'`, or `AttributeError: module 'utils.agent_vars' has no attribute …` | Your `agent_vars.py` is missing, or older than the example after a pull. Copy the example, or add its new lines ([step 3](#3-agentsutilsagent_varspy)). |
-| *"Runtime initialization time exceeded … 30s"*                              | The dependency bundle's launchers point at your local Python. Run `./fix_shebangs.sh --prebuild`, then launch again. |
-| Every question fails with *"The provided guardrail identifier is invalid"*  | The launch got a placeholder guardrail ID. Launch again with the two `--env` flags from the Terraform outputs. |
+| *"Runtime initialization time exceeded … 30s"*                              | The dependency bundle's launchers point at your local Python. Run `./fix_shebangs.sh --prebuild`, then deploy again. |
+| Every question fails with *"The provided guardrail identifier is invalid"*  | The deploy got a placeholder guardrail ID. Deploy again with the two `--env` flags from the Terraform outputs. |
 | Questions are answered by the old code after a deploy                       | `DEFAULT` doesn't serve the new version yet, or the session started on the old one. Wait ([step 10](#10-wait-for-the-new-version-then-smoke-test-the-runtime)), then use `--new`. |
 | *"Agent is already processing a request"*                                   | A second question was sent to a session while its first was still running. Wait for the first answer. |
 | ❌ *"The session ID must be a UUID in lower case"*                          | `--session` got something else. Copy the full ID from `--history`.                                    |
@@ -1252,114 +1255,6 @@ Drop `--new` and LTTM continues the conversation, with the session's history and
 # Arcade game while you wait for a slow query
 ./alexandra.sh --notboring "count all API calls across all three accounts this month"
 ```
-
-## What changed since September 2026
-
-### New
-
-**Agents and answers**
-- **Thirteenth sub-agent, Control Tower** (`query_controltower`):
-  - reads the landing zone, enabled controls, baselines, operations and current drift through the Control Tower API;
-  - reads Control Tower's own events from CloudTrail, together with the AWS Organizations changes of the same days (accounts moved, OUs created);
-  - never reports controls that Control Tower does not check as "no drift".
-- **GuardDuty history** (`query_guardduty_history`): exact counts over the archive, each finding in its latest version, and sample (test) findings counted apart from real ones.
-- **Organizations:**
-  - `policies_in_effect` lists every policy that applies to an account or OU, inherited ones included, and marks the SCPs that Control Tower manages;
-  - `list_roots` and `list_parents` find the root and an account's OU.
-- **Access Analyzer:**
-  - one **organization analyzer** in three regions;
-  - findings say who can get in, with which actions, and whether the access is public;
-  - an organization ID in a condition is marked as this organization or another one.
-- **Numbers computed by code:**
-  - finding counts by severity, and totals over regions and accounts;
-  - money in exact cents (`$242.78 (exact: 242.7750…)`), with totals made by code;
-  - "Results: more than 20 rows" when a list is cut.
-- **Notes written by code for empty results** (CloudTrail, Config, CloudWatch, Flow Logs, CUR, GuardDuty, Health, Access Analyzer). They say what was searched and what the data covers, for example that the trail logs no data events, that the CUR starts in a given billing period, or that a region is not collected.
-- **CloudTrail:**
-  - provenance labels from CloudTrail's digest files on row-level answers;
-  - deduplication on `eventid`;
-  - sign-ins split into console logins, IAM Identity Center and WorkMail, with success and failure read correctly;
-  - new columns (`useragent`, `eventtype`, `recipientaccountid`, `readonly`, `serviceeventdetails`, `additionaleventdata`, `useridentity.username`).
-- **Default accounts per service** (see [What LTTM can answer](#what-lttm-can-answer)), and one sub-agent call for a question about several accounts.
-- **The sub-agent input is written by code:** the user's question word for word plus the supervisor's request. The supervisor no longer dictates SQL.
-- **Breakdowns return up to 100 groups.** Lists stay at 20 rows.
-
-**Safety**
-- **Code checks in `SupervisorSteeringHandler` that correct an answer:** the routing table (DNS questions go to CloudWatch), the money check and the answer check.
-- **SQL validator:**
-  - one statement only;
-  - partition filters checked for each `SELECT` (JOINs, subqueries, CTEs, UNIONs);
-  - no top-level `OR`;
-  - CloudTrail region coverage;
-  - LTTM's own log groups refused.
-- **SQL rewrite hook:** blocks a query repeated within one question.
-- **Escaping of line breaks in log values**, so a log line cannot forge rows.
-- **The Athena workgroup's 10 GiB cap per query.**
-- **The probe answer** for questions about the agent's own internals.
-- **The session ID rule** (a lower-case UUID), checked by the CLI, the stream Lambda and the runtime.
-- **Stream Lambda checks:**
-  - a malformed or blank request gets HTTP 400;
-  - titles are cleaned of control characters;
-  - one log line per failed AgentCore call;
-  - X-Ray active tracing.
-- **Online evaluation** (`terraform/evaluations.tf`), which scores 10% of sessions.
-
-**Data and pipelines**
-- **Daily Config snapshots** at 00:01 UTC through EventBridge Scheduler, for all 9 delivery channels. Each inventory row carries its snapshot day.
-- **Config times in one UTC format.** Oversized Config items are kept, and unreadable records go to the error folder.
-- **The daily lake check** (`lttm-lake-check`, 02:30 UTC) and **SNS email alerts** for the lake's error folders (`lake_alert_email`).
-- **The flow log enforcer** (`lttm-flowlog-enforcer`): every new VPC gets a flow log.
-- **GuardDuty findings of us-west-2** are forwarded to eu-central-1 and archived.
-- **Firehose writes one JSON record per line,** so Athena sees every record.
-- **Lake lifecycle rules:** Athena results expire after 30 days, incomplete uploads after 7.
-
-**Runtime, CLI and deployment**
-- **Platform V2**, which makes the first status line about 2.6 s sooner.
-- **Prompt caching** (1 hour) on the supervisor, CloudTrail, CloudWatch and GuardDuty. The 💰 line now shows **this question's** tokens (judges and Athena bytes included), with 📝/♻️ cache lines.
-- **Memory:**
-  - the history is reloaded after a session's process restarts;
-  - episodic reflections carry across sessions;
-  - `LTTM_TEST_RUN=1` saves nothing.
-- **Dates** ("today", "this year") are filled in at question time, also in a session that runs past midnight UTC.
-- **The CLI:**
-  - the first login works without AWS credentials;
-  - secrets stay off the command line;
-  - `--history` shows full session IDs;
-  - `--session <id> --delete` deletes that session.
-- **`fix_shebangs.sh`**, `terraform.tfvars.example`, and default tags `project` / `terraform` on every Terraform resource.
-
-### Changed
-
-- **Models:** Claude Sonnet 4 → **Claude Opus 4.6** for the supervisor and the sub-agents; the judges stay on Claude Haiku 4.5. `US_SONNET` / `US_HAIKU` became `SUPERVISOR_MODEL`, `SUBAGENT_MODEL` and `JUDGE_MODEL`.
-- **The LLM judges now only log** (shadow mode). Only code checks change answers.
-- **The guardrail checks the question** with `ApplyGuardrail` before the agent runs, instead of the model call.
-- **Each sub-agent is built fresh for each question,** and each session has its own supervisor and lock.
-- **The architecture guard redacts internal names** as `[internal]` instead of retrying, and answers ordinary questions it used to redirect.
-- **The bucket policy:**
-  - the agent role reads the lake and writes only `athena-results/`;
-  - dev and prod can write only through their Firehose delivery roles.
-- **The API Lambdas run on Node.js 24** (was Node.js 20). The `/ask` timeout is 900 s (was 120 s).
-- **Pinned versions:** the runtime dependencies are pinned (`strands-agents` 1.39.0, `bedrock-agentcore` 1.9.0, ADOT 0.21.0), and the AWS provider is pinned to `~> 6.58.0`. The memory strategies use `namespace_templates`.
-- **The dev and prod home-region Config recorders** are Terraform's own (`config_home_name`, default `default`).
-- **The deployment:**
-  - a single launch with both guardrail `--env` flags, instead of a launch, an apply and a second launch;
-  - `./fix_shebangs.sh --prebuild` before it;
-  - a wait for `DEFAULT` after it.
-
-- **`agents/utils/agent_vars.py` is no longer in the repository.** Copy `agent_vars.py.example` to it and fill in the values marked `FILL IN`; your copy is git-ignored.
-- **Every file carries an MIT license header** (`SPDX-License-Identifier: MIT`).
-
-### Removed
-
-- **Claude Sonnet 4,** from the code and from the agent role's Bedrock permissions.
-- **The old non-streaming runtime `lttm_supervisor`** and the `cli_runtime_arn` variable that named it. `cli_stream_runtime_arn` is the only runtime ARN to set.
-- **`LTTMAccessAnalyzerReadRole`** in dev and prod, and the per-account Access Analyzers.
-- **The Control Tower drift archive** (a Firehose stream, an EventBridge rule and the `controltower_events` table). It was added on 2026-10-09 and removed on 2026-10-11. Control Tower history now comes from CloudTrail, and only current drift can be asked about.
-- **The per-VPC `aws_flow_log` resources.** The flow logs stay in AWS, and the enforcer manages new ones.
-- **AWS Config's own 24-hour snapshot cycle**, replaced by the daily schedule.
-- **The old per-account Config buckets.** Config delivers only to the lake.
-- **Ingestion into the lake** of LTTM's own runtime logs and traces, of the evaluation results, and of Control Tower's CloudWatch copy of the trail.
-- **From this repository:** the root `requirements-dev.txt` (step 4 installs the toolkit directly) and `pytest.ini`. The tests and scripts stay outside the repository, as before.
 
 ## License
 

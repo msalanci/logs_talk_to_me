@@ -59,7 +59,7 @@ For a high-level tour, start in the main [`README.md`](../README.md).
 
   It has no SQL hooks: the events tool builds its SQL in code. Without a landing zone, it says so.
 
-- **`requirements.txt`** — The runtime's Python dependencies, all pinned with `==`: `strands-agents` 1.39.0, `bedrock-agentcore` 1.9.0, `boto3`/`botocore` 1.43.6, `aws-opentelemetry-distro` 0.21.0, and everything they pull in. Resolved for CPython 3.12 on `aarch64-manylinux2014`. Any change, even a comment, makes the next `agentcore launch` rebuild the dependency bundle: run `./fix_shebangs.sh --prebuild` first.
+- **`requirements.txt`** — The runtime's Python dependencies, all pinned with `==`: `strands-agents` 1.39.0, `bedrock-agentcore` 1.9.0, `boto3`/`botocore` 1.43.6, `aws-opentelemetry-distro` 0.21.0, and everything they pull in. Resolved for CPython 3.12 on `aarch64-manylinux2014`. Any change, even a comment, makes the next `agentcore deploy` rebuild the dependency bundle: run `./fix_shebangs.sh --prebuild` first.
 
 ## `agents/hooks/` — deterministic safety hooks
 
@@ -237,7 +237,7 @@ Deployed with `terraform init -backend-config=backend.hcl && terraform apply`, w
 - **`variables.tf`** — Every input, with defaults where possible. Among them:
   - the accounts, regions and CLI profiles;
   - `prefix` (the lake bucket's name), the Cognito first user and the Route 53 zones;
-  - `cli_stream_runtime_arn`, the runtime ARN (a placeholder until the first launch);
+  - `cli_stream_runtime_arn`, the runtime ARN (a placeholder until the first deploy);
   - `memory_retention_days`, `stream_timeout_seconds`, `evaluation_sampling_percentage`;
   - `agent_models`, the inference profiles the agent role may call (equal to the models in `agent_vars.py`);
   - the Athena settings (`athena_bytes_scanned_cutoff_per_query`, `athena_results_retention_days`);
@@ -257,7 +257,6 @@ Deployed with `terraform init -backend-config=backend.hcl && terraform apply`, w
   - the guardrail ID and version;
   - the Config snapshot schedules;
   - the evaluation config and its log group.
-- **`.gitignore`** — Keeps `terraform.tfvars` out of git.
 
 **Data lake**
 
@@ -294,7 +293,7 @@ Deployed with `terraform init -backend-config=backend.hcl && terraform apply`, w
   - episodic (episodes per actor and session, reflections per actor).
 
   The runtime itself is not in Terraform: the `agentcore` CLI deploys it.
-- **`guardrails.tf`** — The `lttm-prompt-guard` Bedrock guardrail in us-west-2: a `PROMPT_ATTACK` filter on input (HIGH) and a denied `off_topic` topic, published as a version. The runtime gets them as `LTTM_GUARDRAIL_ID` / `LTTM_GUARDRAIL_VERSION` at `agentcore launch`.
+- **`guardrails.tf`** — The `lttm-prompt-guard` Bedrock guardrail in us-west-2: a `PROMPT_ATTACK` filter on input (HIGH) and a denied `off_topic` topic, published as a version. The runtime gets them as `LTTM_GUARDRAIL_ID` / `LTTM_GUARDRAIL_VERSION` at `agentcore deploy` (its two `--env` flags).
 - **`evaluations.tf`** — AgentCore online evaluation `lttm_datalake_quality_eval` on the runtime's `DEFAULT` endpoint, with its role.
   - Five built-in evaluators: Helpfulness, ToolSelectionAccuracy, GoalSuccessRate, Correctness, Faithfulness.
   - It samples `evaluation_sampling_percentage` of the sessions (default 10).
@@ -380,8 +379,8 @@ Terraform zips each folder with `archive_file` at apply time; the `.zip` files a
   - **Flags:** `--new`, `--session <uuid>`, `--clean`, `--history`, `--delete [id]`, `--health`, `--services`, `--notboring`.
   - **Environment variables:** `LTTM_STREAM_API_URL`, `COGNITO_USER_POOL_ID`, `COGNITO_CLIENT_ID` and `COGNITO_REGION` (read from `terraform output` when unset), and `LTTM_TEST_RUN=1`.
 - **`fix_shebangs.sh`** — Repairs the launcher scripts in the cached AgentCore dependency bundle (`agents/.bedrock_agentcore/<agent>/dependencies.zip`), which `uv` points at the local venv's Python.
-  - `--prebuild` builds the bundle locally the way `agentcore launch` does, then repairs it.
-  - `--check` reports whether the next launch reuses it.
+  - `--prebuild` builds the bundle locally the way `agentcore deploy` does, then repairs it.
+  - `--check` reports whether the next deploy reuses it.
   - Needs the venv with the starter toolkit, and `uv` on the PATH.
 - **`lttm_game.py`** — An optional terminal arcade game shown while the agent works (`alexandra.sh --notboring`). It sits next to `alexandra.sh`.
 - **`README.md`** — The main project README.
@@ -389,5 +388,4 @@ Terraform zips each folder with `archive_file` at apply time; the `.zip` files a
 - **`.gitignore`** — Keeps out:
   - your configuration: `*.tfvars` (except the examples), `agents/utils/agent_vars.py`, `agents/.bedrock_agentcore.yaml`;
   - state: `*.tfstate*`, `*.tfplan`, `backend.hcl`;
-  - build output: `.terraform/`, the AgentCore build folder, the Lambda zips, `node_modules/`, `__pycache__/`, `*.pyc`;
-  - the `terraform/tests` link.
+  - build output: `.terraform/`, the AgentCore build folder, the Lambda zips, `node_modules/`, `__pycache__/`, `*.pyc`.
